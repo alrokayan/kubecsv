@@ -1,10 +1,10 @@
 app_name,helm_truechart,storage_name,storage_enabled,storage_path,storage_subPath,storage_server,storage_type,storage_mountPath,nw_master_nic,nw_mac,nw_address_with_subnet,nw_gateway,nw_dns1,nw_dns2,run_as_user,run_as_group,privileged,extra_helm_values
-home-assistant-chalet,home-assistant,config,true,/mnt/kube-volumes/home-assistant/chalet,data,10.10.4.5,nfs,/config,veth6,00:14:51:5b:69:3a,,,,,0,0,true,--set cnpg.main.enabled=false --set configmap.init.enabled=false --set persistence.init.enabled=false --set workload.main.podSpec.initContainers.init.enabled=false
+home-assistant-chalet,home-assistant,config,true,/mnt/kube-volumes/home-assistant/chalet,data,10.10.4.5,nfs,/config,eth4,00:14:51:5b:69:3a,,,,,0,0,true,--set cnpg.main.enabled=false --set configmap.init.enabled=false --set persistence.init.enabled=false --set workload.main.podSpec.initContainers.init.enabled=false
 mosquitto-chalet,mosquitto,data,true,/mnt/kube-volumes/mqtt,data,10.10.4.5,nfs,/mosquitto/data,,,,,,,,,,
 mosquitto-chalet,mosquitto,mosquitto-config,false,,,,,,,,,,,,,,,
 mosquitto-chalet,mosquitto,configinc,false,,,,,,,,,,,,,,,
-mosquitto-chalet,mosquitto,config,true,/mnt/kube-volumes/mqtt,config,10.10.4.5,nfs,/mosquitto/config,veth6,00:14:51:c0:84:52,,,,,,,,
-zigbee2mqtt-chalet-c1,zigbee2mqtt,data,true,/mnt/kube-volumes/zigbee2mqtt/chalet/c1,data,10.10.4.5,nfs,/data,veth6,00:14:51:aa:4e:98,,,,,0,0,true,--set workload.main.podSpec.initContainers.init-config.enabled=false --set containers.main.env.USE_CUSTOM_CONFIG_FILE=true
+mosquitto-chalet,mosquitto,config,true,/mnt/kube-volumes/mqtt,config,10.10.4.5,nfs,/mosquitto/config,eth4,00:14:51:c0:84:52,,,,,,,,
+zigbee2mqtt-chalet-c1,zigbee2mqtt,data,true,/mnt/kube-volumes/zigbee2mqtt/chalet/c1,data,10.10.4.5,nfs,/data,eth4,00:14:51:aa:4e:98,,,,,0,0,true,--set workload.main.podSpec.initContainers.init-config.enabled=false --set containers.main.env.USE_CUSTOM_CONFIG_FILE=true
 home-assistant-dewaneah,home-assistant,config,true,/mnt/kube-volumes/home-assistant/dewaneah,data,10.10.5.5,nfs,/config,eth5,00:14:51:b1:d3:42,,,,,0,0,true,--set cnpg.main.enabled=false --set configmap.init.enabled=false --set persistence.init.enabled=false --set workload.main.podSpec.initContainers.init.enabled=false
 mosquitto-dewaneah,mosquitto,data,true,/mnt/kube-volumes/mqtt,data,10.10.5.5,nfs,/mosquitto/data,,,,,,,,,,
 mosquitto-dewaneah,mosquitto,mosquitto-config,false,,,,,,,,,,,,,,,
