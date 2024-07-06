@@ -1425,7 +1425,7 @@ while $CONTINUE; do
     echo "-----------------------------------------------------------" >&3
     read -r OPTION
   else
-    OPTION=$1
+    OPTION="$1"
     CONTINUE=false
   fi
   
