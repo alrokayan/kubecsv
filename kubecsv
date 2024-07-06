@@ -1020,6 +1020,7 @@ systemctl daemon-reload
 systemctl enable --now kill-failed-pods
 ____EOF____
   echo "-- Copying kubeconfig" >&3
+  rm -f $KUBECONFIG
   copyKubeconfig
   for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
     echo "-- NODE $i: Copying kubeconfig to ~/.kube/config" >&3
@@ -1436,6 +1437,7 @@ while $CONTINUE; do
     ;;
   c) ## Create kubeconfig file
     echo "-- Copying kubeconfig to kubeconfig" >&3
+    rm -f $KUBECONFIG
     copyKubeconfig
     END_OF_SCRIPT
     ;;
