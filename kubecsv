@@ -1,4 +1,21 @@
 #!/bin/bash
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#  
+#   http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 mkdir -p logs tmp bin
 LOG_FILE="$(pwd)/logs/$(date +"%Y_%m_%d_%I_%M_%p").log"
 exec 3>&1 1>>"$LOG_FILE" 2>&1
@@ -159,29 +176,29 @@ function deployFileCreation() {
     if [ "$CSV_DNS2" == "" ]; then CSV_DNS2=$CSV_DNS2_DEFAULT; fi
     cat <<EOF >deploy.csv
 app_name,helm_truechart,storage_name,storage_enabled,storage_path,storage_subPath,storage_server,storage_type,storage_mountPath,nw_master_nic,nw_mac,nw_address_with_subnet,nw_gateway,nw_dns1,nw_dns2,run_as_user,run_as_group,privileged,extra_helm_values
-plex,plex,config,true,$CSV_NFSPATH/plex,config,$CSV_NFSSERVER,nfs,/config
-plex,plex,movies,true,$CSV_LARGENFSPATH/Media,Movies,$CSV_NFSSERVER,nfs,/Movies
-plex,plex,tv,true,$CSV_LARGENFSPATH/Media,TV,$CSV_NFSSERVER,nfs,/TV,$CSV_MASTERNIC,,$(nextip $CSV_IP 1)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true
-radarr,radarr,config,true,$CSV_NFSPATH/radarr,config,$CSV_NFSSERVER,nfs,/config
-radarr,radarr,movies,true,$CSV_LARGENFSPATH/Media,Movies,$CSV_NFSSERVER,nfs,/movies
-radarr,radarr,downloads,true,$CSV_LARGENFSPATH/Downloads,,$CSV_NFSSERVER,nfs,/downloads,$CSV_MASTERNIC,$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1)),,,,,0,0,true
-sonarr,sonarr,config,true,$CSV_NFSPATH/sonarr,config,$CSV_NFSSERVER,nfs,/config
-sonarr,sonarr,tv,true,$CSV_LARGENFSPATH/Media,TV,$CSV_NFSSERVER,nfs,/tv
-sonarr,sonarr,downloads,true,$CSV_LARGENFSPATH/Downloads,,$CSV_NFSSERVER,nfs,/downloads,$CSV_MASTERNIC,$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1)),,,,,0,0,true
-sabnzbd,sabnzbd,config,true,$CSV_NFSPATH/sabnzbd,config,$CSV_NFSSERVER,nfs,/config
-sabnzbd,sabnzbd,downloads,true,$CSV_LARGENFSPATH/Downloads,,$CSV_NFSSERVER,nfs,/downloads,$CSV_MASTERNIC,$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1)),,,,,0,0,true
-overseerr,overseerr,config,true,$CSV_NFSPATH/overseerr,config,$CSV_NFSSERVER,nfs,/app/config,$CSV_MASTERNIC,$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1)),,,,,0,0,true
-code-server,code-server,config,true,$CSV_NFSPATH/code-server,config,$CSV_NFSSERVER,nfs,/config,$CSV_MASTERNIC,,$(nextip $CSV_IP 1)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true
-netbootxyz,netbootxyz,config,true,$CSV_NFSPATH/netbootxyz,config,$CSV_NFSSERVER,nfs,/config
-netbootxyz,netbootxyz,assets,true,$CSV_NFSPATH/netbootxyz,assets,$CSV_NFSSERVER,nfs,/assets,$CSV_MASTERNIC,,$(nextip $CSV_IP 2)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true
-homepage,homepage,config,true,$CSV_NFSPATH/homepage,config,$CSV_NFSSERVER,nfs,/app/config,$CSV_MASTERNIC,,$(nextip $CSV_IP 3)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2
+plex,plex,config,true,$CSV_NFSPATH/plex,config,$CSV_NFSSERVER,nfs,/config,,,,,,,,,,
+plex,plex,movies,true,$CSV_LARGENFSPATH/Media,Movies,$CSV_NFSSERVER,nfs,/Movies,,,,,,,,,,
+plex,plex,tv,true,$CSV_LARGENFSPATH/Media,TV,$CSV_NFSSERVER,nfs,/TV,$CSV_MASTERNIC,,$(nextip $CSV_IP 1)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true,
+radarr,radarr,config,true,$CSV_NFSPATH/radarr,config,$CSV_NFSSERVER,nfs,/config,,,,,,,,,,
+radarr,radarr,movies,true,$CSV_LARGENFSPATH/Media,Movies,$CSV_NFSSERVER,nfs,/movies,,,,,,,,,,
+radarr,radarr,downloads,true,$CSV_LARGENFSPATH/Downloads,,$CSV_NFSSERVER,nfs,/downloads,$CSV_MASTERNIC,$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1)),,,,,0,0,true,
+sonarr,sonarr,config,true,$CSV_NFSPATH/sonarr,config,$CSV_NFSSERVER,nfs,/config,,,,,,,,,,
+sonarr,sonarr,tv,true,$CSV_LARGENFSPATH/Media,TV,$CSV_NFSSERVER,nfs,/tv,,,,,,,,,,
+sonarr,sonarr,downloads,true,$CSV_LARGENFSPATH/Downloads,,$CSV_NFSSERVER,nfs,/downloads,$CSV_MASTERNIC,$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1)),,,,,0,0,true,
+sabnzbd,sabnzbd,config,true,$CSV_NFSPATH/sabnzbd,config,$CSV_NFSSERVER,nfs,/config,,,,,,,,,,
+sabnzbd,sabnzbd,downloads,true,$CSV_LARGENFSPATH/Downloads,,$CSV_NFSSERVER,nfs,/downloads,$CSV_MASTERNIC,$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1)),,,,,0,0,true,
+overseerr,overseerr,config,true,$CSV_NFSPATH/overseerr,config,$CSV_NFSSERVER,nfs,/app/config,$CSV_MASTERNIC,$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1)),,,,,0,0,true,
+code-server,code-server,config,true,$CSV_NFSPATH/code-server,config,$CSV_NFSSERVER,nfs,/config,$CSV_MASTERNIC,,$(nextip $CSV_IP 1)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true,
+netbootxyz,netbootxyz,config,true,$CSV_NFSPATH/netbootxyz,config,$CSV_NFSSERVER,nfs,/config,,,,,,,,,,
+netbootxyz,netbootxyz,assets,true,$CSV_NFSPATH/netbootxyz,assets,$CSV_NFSSERVER,nfs,/assets,$CSV_MASTERNIC,,$(nextip $CSV_IP 2)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true,
+homepage,homepage,config,true,$CSV_NFSPATH/homepage,config,$CSV_NFSSERVER,nfs,/app/config,$CSV_MASTERNIC,,$(nextip $CSV_IP 3)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,,,,
 home-assistant,home-assistant,config,true,$CSV_NFSPATH/home-assistant,config,$CSV_NFSSERVER,nfs,/config,$CSV_MASTERNIC,,$(nextip $CSV_IP 4)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true,--set cnpg.main.enabled=false --set configmap.init.enabled=false --set persistence.init.enabled=false --set workload.main.podSpec.initContainers.init.enabled=false
-mosquitto,mosquitto,data,true,$CSV_NFSPATH/mosquitto,data,$CSV_NFSSERVER,nfs,/mosquitto/data
-mosquitto,mosquitto,mosquitto-config,false
-mosquitto,mosquitto,configinc,false
-mosquitto,mosquitto,config,true,$CSV_NFSPATH/mosquitto,config,$CSV_NFSSERVER,nfs,/mosquitto/config,$CSV_MASTERNIC,,$(nextip $CSV_IP 5)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2
+mosquitto,mosquitto,data,true,$CSV_NFSPATH/mosquitto,data,$CSV_NFSSERVER,nfs,/mosquitto/data,,,,,,,,,,
+mosquitto,mosquitto,mosquitto-config,false,,,,,,,,,,,,,,,
+mosquitto,mosquitto,configinc,false,,,,,,,,,,,,,,,
+mosquitto,mosquitto,config,true,$CSV_NFSPATH/mosquitto,config,$CSV_NFSSERVER,nfs,/mosquitto/config,$CSV_MASTERNIC,,$(nextip $CSV_IP 5)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,,,,
 zigbee2mqtt,zigbee2mqtt,data,true,$CSV_NFSPATH/zigbee2mqtt,data,$CSV_NFSSERVER,nfs,/data,$CSV_MASTERNIC,,$(nextip $CSV_IP 6)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true,--set workload.main.podSpec.initContainers.init-config.enabled=false --set containers.main.env.USE_CUSTOM_CONFIG_FILE=true
-node-red,node-red,data,true,$CSV_NFSPATH/node-red,data,$CSV_NFSSERVER,nfs,/data,$CSV_MASTERNIC,,$(nextip $CSV_IP 7)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true
+node-red,node-red,data,true,$CSV_NFSPATH/node-red,data,$CSV_NFSSERVER,nfs,/data,$CSV_MASTERNIC,,$(nextip $CSV_IP 7)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true,
 EOF
   fi
 }
