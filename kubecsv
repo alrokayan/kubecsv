@@ -1,0 +1,1540 @@
+#!/bin/bash
+mkdir -p logs tmp bin
+LOG_FILE="$(pwd)/logs/$(date +"%Y_%m_%d_%I_%M_%p").log"
+exec 3>&1 1>>"$LOG_FILE" 2>&1
+trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
+trap "echo 'ERROR: An error occurred during execution, check log $LOG_FILE for details.' >&3"
+touch .env
+if ! cat .env | grep "export PATH="; then
+  echo "export PATH=\"$(pwd)/bin:$PATH\"" >> .env
+fi
+if ! cat .env | grep "export SSH_EXTRA_ARGS="; then
+  echo 'export SSH_EXTRA_ARGS="-o StrictHostKeyChecking=no"' >> .env
+fi
+. .env
+cat .env
+if [ -f "$KUBECONFIG" ]; then
+  chmod g+r kubeconfig
+  chmod go-r kubeconfig
+fi
+## GENERAL DEFAULT VALUES
+export NODE_ARRAY_DEFAULT="(10.99.0.100 10.99.0.101 10.99.0.102 10.99.0.103)"
+KUBECONFIG_DEFAULT="$(pwd)/kubeconfig"
+export KUBECONFIG_DEFAULT
+export CLUSTER_CIDR_DEFAULT="10.244"
+export TZ_DEFAULT="Etc/GMT"
+export SSH_USERNAME_DEFAULT="root"
+PRIVATE_KEY_DEFAULT="$(pwd)/.ssh/id_rsa"
+export PRIVATE_KEY_DEFAULT
+## DEFAULT VALUES FOR STEP 4 (GENERATE EXAMPLE CSV FILE)
+export CSV_MASTERNIC_DEFAULT="eth0"
+export CSV_NFSSERVER_DEFAULT="10.0.0.1"
+export CSV_NFSPATH_DEFAULT="/mnt/kube-volumes"
+export CSV_LARGENFSPATH_DEFAULT="/mnt/hdd"
+export CSV_IP_DEFAULT=10.99.0.50
+export CSV_CIDR_DEFAULT=24
+export CSV_GW_DEFAULT=10.99.0.1
+export CSV_DNS1_DEFAULT=10.99.0.1
+export CSV_DNS2_DEFAULT=1.1.1.1
+
+#######################################
+#######################################
+########## FUNCTION readEnvVar ########
+#######################################
+#######################################
+function readEnvVar() {
+  # $1: Variable name
+  # $2: Default value
+  # $3: Message
+  # $4: Skip if variable is not empty (send any character to skip)
+  if [[ -z ${!1} ]] || [[ -z $4 ]]; then
+    [[ -z ${!1} ]] && eval "$1=$2"
+    echo ">> $3: (Default: ${!1})" >&3
+    read -r INPUT
+    [[ $INPUT != "" ]] && eval "$1=$INPUT"
+  else
+    eval "export $1=${!1}"
+  fi
+  sed -i.BACKUP "/^export $1=/d" .env
+  echo "export $1=\"${!1}\"" >>.env
+}
+
+#######################################
+#######################################
+########## FUNCTION readVar ###########
+#######################################
+#######################################
+function readVar() {
+  # $1: Variable name
+  # $2: Default value
+  # $3: Message
+  # $4: Skip if variable is not empty (send any character to skip)
+  # $5: timeout
+  if [[ -z ${!1} ]] || [[ -z $4 ]]; then
+    [[ -z ${!1} ]] && eval "export $1=$2"
+    if [[ -z $5 ]]; then
+      echo ">> $3: (Default: ${!1})" >&3
+      read -r INPUT
+    else
+      echo ">> $3: (Default: ${!1}) [TIMEOUT: ${5}s]" >&3
+      read -t $5 -r INPUT
+    fi
+    [[ $INPUT != "" ]] && eval "export $1=$INPUT"
+  else
+    eval "export $1=${!1}"
+  fi
+  sed -i.BACKUP "/^export $1=/d" .env
+  echo "export $1=\"${!1}\"" >>.env
+}
+
+#######################################
+#######################################
+##### FUNCTION readArrayVar ###########
+#######################################
+#######################################
+function readArrayVar() {
+  # $1: Variable name
+  # $2: Message
+  # $4: Default value
+  # $3: Skip if variable is not empty (send any character to skip)
+  if [[ -z ${!1} ]] || [[ -z $4 ]]; then
+    echo ">> $2: (Default: $3)" >&3
+    read -r INPUT
+    if [[ $INPUT != "" ]]; then
+      sed -i.BACKUP "/^export $1=/d" .env
+      echo "export $1=($INPUT)" >>.env
+    else
+      sed -i.BACKUP "/^export $1=/d" .env
+      echo "export $1=($3)" >>.env
+    fi
+  fi
+  . .env
+}
+
+#######################################
+#######################################
+######## FUNCTION nextip ##############
+#######################################
+#######################################
+function nextip() {
+  IP=$1
+  for ((i = 0; i <= $2; i++)); do
+    IP_HEX=$(printf '%.2X%.2X%.2X%.2X\n' `echo $IP | sed -e 's/\./ /g'`)
+    NEXT_IP_HEX=$(printf %.8X `echo $(( 0x$IP_HEX + 1 ))`)
+    IP=$(printf '%d.%d.%d.%d\n' `echo $NEXT_IP_HEX | sed -r 's/(..)/0x\1 /g'`)
+  done
+  echo "$IP"
+}
+
+#######################################
+#######################################
+### FUNCTION deployFileCreation #######
+#######################################
+#######################################
+function deployFileCreation() {
+  if [ ! -f deploy.csv ]; then
+    if $CONTINUE; then
+      unset READVARASK
+    else
+      READVARASK=1
+    fi
+    readVar CSV_MASTERNIC "$CSV_MASTERNIC_DEFAULT" "What's your default network interface (run \"ip a\" in the master node to get the list)?" $READVARASK >&3
+    readVar CSV_NFSSERVER "$CSV_NFSSERVER_DEFAULT" "What's your NFS server?" $READVARASK >&3
+    readVar CSV_NFSPATH "$CSV_NFSPATH_DEFAULT" "What's the NFS server's path where all volumes are?" $READVARASK >&3
+    readVar CSV_LARGENFSPATH "$CSV_LARGENFSPATH_DEFAULT" "What's the NFS server's path where all large files (media and downloads) are?" $READVARASK >&3
+    readVar CSV_IP "$CSV_IP_DEFAULT" "Give example of a valid local IP?" $READVARASK >&3
+    readVar CSV_CIDR "$CSV_CIDR_DEFAULT" "What's the CIDR suffex for $CSV_IP?" $READVARASK >&3
+    export CSV_CIDR="${CSV_CIDR//$'/'/}"
+    readVar CSV_GW "$CSV_GW_DEFAULT" "What's the gateway for $CSV_IP1?" $READVARASK >&3
+    readVar CSV_DNS1 "$CSV_DNS1_DEFAULT" "What's the DNS1 for $CSV_IP1?" $READVARASK >&3
+    readVar CSV_DNS2 "$CSV_DNS2_DEFAULT" "hat's the DNS2 for $CSV_IP1?" $READVARASK >&3
+    if [ "$CSV_MASTERNIC" == "" ]; then CSV_MASTERNIC=$CSV_MASTERNIC_DEFAULT; fi
+    if [ "$CSV_LARGENFSPATH" == "" ]; then CSV_LARGENFSPATH=$CSV_LARGENFSPATH_DEFAULT; fi
+    if [ "$CSV_NFSSERVER" == "" ]; then CSV_NFSSERVER=$CSV_NFSSERVER_DEFAULT; fi
+    if [ "$CSV_NFSPATH" == "" ]; then CSV_NFSPATH=$CSV_NFSPATH_DEFAULT; fi
+    if [ "$CSV_IP" == "" ]; then CSV_IP=$CSV_IP_DEFAULT; fi
+    if [ "$CSV_CIDR" == "" ]; then CSV_CIDR=$CSV_CIDR_DEFAULT; fi
+    if [ "$CSV_GW" == "" ]; then CSV_GW=$CSV_GW_DEFAULT; fi
+    if [ "$CSV_DNS1" == "" ]; then CSV_DNS1=$CSV_DNS1_DEFAULT; fi
+    if [ "$CSV_DNS2" == "" ]; then CSV_DNS2=$CSV_DNS2_DEFAULT; fi
+    cat <<EOF >deploy.csv
+app_name,helm_truechart,storage_name,storage_enabled,storage_path,storage_subPath,storage_server,storage_type,storage_mountPath,nw_master_nic,nw_mac,nw_address_with_subnet,nw_gateway,nw_dns1,nw_dns2,run_as_user,run_as_group,privileged,extra_helm_values
+plex,plex,config,true,$CSV_NFSPATH/plex,config,$CSV_NFSSERVER,nfs,/config
+plex,plex,movies,true,$CSV_LARGENFSPATH/Media,Movies,$CSV_NFSSERVER,nfs,/Movies
+plex,plex,tv,true,$CSV_LARGENFSPATH/Media,TV,$CSV_NFSSERVER,nfs,/TV,$CSV_MASTERNIC,,$(nextip $CSV_IP 1)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true
+radarr,radarr,config,true,$CSV_NFSPATH/radarr,config,$CSV_NFSSERVER,nfs,/config
+radarr,radarr,movies,true,$CSV_LARGENFSPATH/Media,Movies,$CSV_NFSSERVER,nfs,/movies
+radarr,radarr,downloads,true,$CSV_LARGENFSPATH/Downloads,,$CSV_NFSSERVER,nfs,/downloads,$CSV_MASTERNIC,$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1)),,,,,0,0,true
+sonarr,sonarr,config,true,$CSV_NFSPATH/sonarr,config,$CSV_NFSSERVER,nfs,/config
+sonarr,sonarr,tv,true,$CSV_LARGENFSPATH/Media,TV,$CSV_NFSSERVER,nfs,/tv
+sonarr,sonarr,downloads,true,$CSV_LARGENFSPATH/Downloads,,$CSV_NFSSERVER,nfs,/downloads,$CSV_MASTERNIC,$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1)),,,,,0,0,true
+sabnzbd,sabnzbd,config,true,$CSV_NFSPATH/sabnzbd,config,$CSV_NFSSERVER,nfs,/config
+sabnzbd,sabnzbd,downloads,true,$CSV_LARGENFSPATH/Downloads,,$CSV_NFSSERVER,nfs,/downloads,$CSV_MASTERNIC,$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1)),,,,,0,0,true
+overseerr,overseerr,config,true,$CSV_NFSPATH/overseerr,config,$CSV_NFSSERVER,nfs,/app/config,$CSV_MASTERNIC,$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1)),,,,,0,0,true
+code-server,code-server,config,true,$CSV_NFSPATH/code-server,config,$CSV_NFSSERVER,nfs,/config,$CSV_MASTERNIC,,$(nextip $CSV_IP 1)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true
+netbootxyz,netbootxyz,config,true,$CSV_NFSPATH/netbootxyz,config,$CSV_NFSSERVER,nfs,/config
+netbootxyz,netbootxyz,assets,true,$CSV_NFSPATH/netbootxyz,assets,$CSV_NFSSERVER,nfs,/assets,$CSV_MASTERNIC,,$(nextip $CSV_IP 2)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true
+homepage,homepage,config,true,$CSV_NFSPATH/homepage,config,$CSV_NFSSERVER,nfs,/app/config,$CSV_MASTERNIC,,$(nextip $CSV_IP 3)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2
+home-assistant,home-assistant,config,true,$CSV_NFSPATH/home-assistant,config,$CSV_NFSSERVER,nfs,/config,$CSV_MASTERNIC,,$(nextip $CSV_IP 4)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true,--set cnpg.main.enabled=false --set configmap.init.enabled=false --set persistence.init.enabled=false --set workload.main.podSpec.initContainers.init.enabled=false
+mosquitto,mosquitto,data,true,$CSV_NFSPATH/mosquitto,data,$CSV_NFSSERVER,nfs,/mosquitto/data
+mosquitto,mosquitto,mosquitto-config,false
+mosquitto,mosquitto,configinc,false
+mosquitto,mosquitto,config,true,$CSV_NFSPATH/mosquitto,config,$CSV_NFSSERVER,nfs,/mosquitto/config,$CSV_MASTERNIC,,$(nextip $CSV_IP 5)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2
+zigbee2mqtt,zigbee2mqtt,data,true,$CSV_NFSPATH/zigbee2mqtt,data,$CSV_NFSSERVER,nfs,/data,$CSV_MASTERNIC,,$(nextip $CSV_IP 6)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true,--set workload.main.podSpec.initContainers.init-config.enabled=false --set containers.main.env.USE_CUSTOM_CONFIG_FILE=true
+node-red,node-red,data,true,$CSV_NFSPATH/node-red,data,$CSV_NFSSERVER,nfs,/data,$CSV_MASTERNIC,,$(nextip $CSV_IP 7)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true
+EOF
+  fi
+}
+
+#######################################
+#######################################
+### FUNCTION WAIT_ALL_NODES_ONLINE ####
+#######################################
+#######################################
+function WAIT_ALL_NODES_ONLINE() {
+  . .env
+  echo "-- Waiting for all nodes to be online" >&3
+  for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+    host="${NODE_ARRAY[$i]}"
+    while ! ping -c1 $host &>/dev/null; do
+      echo "-- NODE $i: Waiting to be online (ping ${NODE_ARRAY[$i]})" >&3
+      sleep 5
+    done
+    echo "-- NODE $i: Online" >&3
+  done
+}
+
+#######################################
+#######################################
+### FUNCTION IS_ALL_NODES_ONLINE ######
+#######################################
+#######################################
+function IS_ALL_NODES_ONLINE() {
+  . .env
+  echo "-- Checking if all nodes are online" >&3
+  if [[ -z $NODE_ARRAY ]]; then
+    echo "-- NODE_ARRAY is not set" >&3
+    return 1
+  fi
+  for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+    host="${NODE_ARRAY[$i]}"
+    if ! ping -c1 "$host" &>/dev/null; then
+      echo "-- $host is offline" >&3
+      return 1
+    fi
+  done
+  return 0
+}
+
+#######################################
+#######################################
+###### FUNCTION RESTART_ALL_NODES #####
+#######################################
+#######################################
+function RESTART_ALL_NODES() {
+  . .env
+  for ((i = 1; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+    echo "-- Rebooting ${NODE_ARRAY[$i]}"
+    (ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" "reboot") &
+  done
+  wait $!
+  echo "-- Rebooting ${NODE_ARRAY[0]}"
+  ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}" "reboot"
+  sleep 5
+  WAIT_ALL_NODES_ONLINE
+}
+
+#######################################
+#######################################
+###### FUNCTION copyKubeconfig ########
+#######################################
+#######################################
+function copyKubeconfig() {
+  echo "-- Creating $KUBECONFIG" >&3
+  i=0
+  ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
+#!/bin/bash
+trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
+rm -f ~/.kube/config
+cp -i /etc/kubernetes/admin.conf ~/.kube/config 
+chown "$(id -un)":"$(id -Gn)" ~/.kube/config 
+chmod g+r ~/.kube/config 
+chmod go-r ~/.kube/config 
+____EOF____
+  rm -f "$KUBECONFIG".BACKUP
+  mv "$KUBECONFIG" "$KUBECONFIG".BACKUP
+  scp -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}":~/.kube/config "$KUBECONFIG"
+  chown "$(id -un)":"$(id -Gn)" "$KUBECONFIG"
+  chmod g+r "$KUBECONFIG"
+  chmod go-r "$KUBECONFIG"
+  for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+    echo "-- NODE $i: Copying kubeconfig to ~/.kube/config" >&3
+    (scp -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$KUBECONFIG" "$SSH_USERNAME"@"${NODE_ARRAY[$i]}":~/.kube/config) &
+  done
+  wait $!
+}
+
+#######################################
+#######################################
+###### FUNCTION SWAPRemoval ###########
+#######################################
+#######################################
+function SWAPRemoval() {
+  for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+    (
+      echo "-- NODE $i: Removing SWAP and rebooting if needed" >&3
+      ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
+#!/bin/bash
+trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
+if free | awk '/^Swap:/ {exit !$2}'; then
+  echo "-- NODE $i -- removing swap partation "
+  sed -e '/swap/ s/^#*/#/' -i /etc/fstab
+  umount /swap.img
+  rm -f /swap.img
+  swapoff -a
+  reboot
+fi
+____EOF____
+    ) &
+  done
+  wait $!
+  WAIT_ALL_NODES_ONLINE
+}
+
+#######################################
+#######################################
+####### FUNCTION runDNSTool ###########
+#######################################
+#######################################
+function runDNSTool() {
+  echo "-- Creating app-dnstools namespace"
+  kubectl create ns app-dnstools
+  kubectl delete network-attachment-definitions.k8s.cni.cncf.io "dnstools-cni" -n "app-dnstools"
+  readVar app_dnstools_master_nic "eth0" "Please entre master NIC for dnstools (run \"ip a\" in ${#NODE_ARRAY[0]} to get all available NICs)" 1
+  readVar app_dnstools_mac "$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1))" "Please entre the MAC address for this NIC" 1
+  readVar app_dnstools_ip "" "Please entre the IP address for dnstools with subnet suffex (example: 10.99.0.60/24). Leave empty for DHCP" 1
+  if [ "$app_dnstools_ip" != "" ]; then
+    readVar app_dnstools_gw "10.99.0.1" "Please entre the gateway address for dnstools" 1
+    readVar app_dnstools_dns1 "1.1.1.1" "Please entre DNS 1 for dnstools" 1
+    readVar app_dnstools_dns2 "8.8.8.8" "Please entre DNS 2 for dnstools" 1
+    echo "-- Deploying cbr1-$app_dnstools_master_nic NetworkAttachmentDefinition" >&3
+    cat <<EOF | kubectl create -f -
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: dnstools-cni
+  namespace: app-dnstools
+spec:
+  config: '{
+      "cniVersion": "1.0.0",
+      "name": "cbr1-$app_dnstools_master_nic",
+      "type": "macvlan",
+      "isDefaultGateway": true,
+      "mode": "bridge",
+      "master": "$app_dnstools_master_nic",
+      "mac": "$app_dnstools_mac",
+      "ipam": {
+        "type": "static",
+        "addresses":
+        [
+          {
+            "address": "$app_dnstools_ip",
+            "gateway": "$app_dnstools_gw"
+          }
+        ],
+        "routes":
+        [
+          {
+            "dst": "0.0.0.0/0"
+          }
+        ]
+      },
+      "dns":
+      {
+        "nameservers":
+        [
+          "$app_dnstools_dns1",
+          "$app_dnstools_dns2"
+        ]
+      }
+    }'
+EOF
+  else
+    echo "-- Deploying cbr2-$app_dnstools_master_nic NetworkAttachmentDefinition" >&3
+    cat <<EOF | kubectl create -f -
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: dnstools-cni
+  namespace: app-dnstools
+spec:
+  config: '{
+      "cniVersion": "1.0.0",
+      "name": "cbr2-$app_dnstools_master_nic",
+      "plugins": [
+        {
+          "cniVersion": "1.0.0",
+          "type": "macvlan",
+          "mode": "bridge",
+          "mac": "$app_dnstools_mac",
+          "master": "$app_dnstools_master_nic",
+          "isDefaultGateway": false,
+          "enableIPv6": true,
+          "ipam": {
+            "type": "dhcp"
+          }
+        }
+      ]
+    }'
+EOF
+  fi
+  echo "-- Running dnstools pod" >&3
+  kubectl run -it --rm \
+    --namespace app-dnstools \
+    --restart=Never \
+    --image=infoblox/dnstools:latest \
+    --annotations='k8s.v1.cni.cncf.io/networks=dnstools-cni' \
+    dnstools >&3
+  echo "-- Deleting app-dnstools namespace" >&3
+  kubectl delete ns app-dnstools --grace-period=0 --force
+}
+
+#######################################
+#######################################
+######### FUNCTION binInstall #########
+#######################################
+#######################################
+function binInstall() {
+  forceinstallbin=true
+  if ! $1; then forceinstallbin=false; fi
+  if [[ "$(uname -s)" == *"Linux"* ]]; then
+    echo "-- OS: Linux - CHECKING BINARIES" >&3
+    if [ ! -f bin/helm ] || $forceinstallbin; then
+      rm -f bin/helm
+      curl -L https://get.helm.sh/helm-v3.15.2-linux-"$(dpkg --print-architecture)".tar.gz -o tmp/helm.tar.gz
+      tar -zxf tmp/helm.tar.gz -C tmp
+      mv tmp/linux-"$(dpkg --print-architecture)"/helm bin/
+      chown "$(id -un)":"$(id -Gn)" bin/helm
+      chmod +x bin/helm
+      if [ "$(which helm)" == "$(pwd)/bin/helm" ]; then echo "-- bin/helm installed successfully" >&3; fi
+    fi
+    if [ ! -f bin/kubectl ] || $forceinstallbin; then
+      rm -f bin/kubectl
+      curl -L "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$(dpkg --print-architecture)/kubectl" -o bin/kubectl
+      chown "$(id -un)":"$(id -Gn)" bin/kubectl
+      chmod +x bin/kubectl
+      if [ "$(which kubectl)" == "$(pwd)/bin/kubectl" ]; then echo "-- bin/kubectl installed successfully" >&3; fi
+    fi
+    if [ ! -f bin/jq ] || $forceinstallbin; then
+      rm -f bin/jq
+      curl -L "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-$(dpkg --print-architecture)" -o bin/jq
+      chown "$(id -un)":"$(id -Gn)" bin/jq
+      chmod +x bin/jq
+      if [ "$(which jq)" == "$(pwd)/bin/jq" ]; then echo "-- bin/jq installed successfully" >&3; fi
+    fi
+    if [ ! -f bin/k9s ] || $forceinstallbin; then
+      rm -f bin/k9s
+      curl -L https://github.com/derailed/k9s/releases/download/v0.32.5/k9s_Linux_"$(dpkg --print-architecture)".tar.gz -o tmp/k9s.tar.gz
+      mkdir tmp/k9s
+      tar -zxf tmp/k9s.tar.gz -C tmp/k9s
+      mv tmp/k9s/k9s bin/
+      chown "$(id -un)":"$(id -Gn)" bin/k9s
+      chmod +x bin/k9s
+      if [ "$(which k9s)" == "$(pwd)/bin/k9s" ]; then echo "-- bin/k9s installed successfully" >&3; fi
+    fi
+    # if [ ! -f bin/cilium ] || $forceinstallbin; then
+    #   CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
+    #   curl -L "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-$(dpkg --print-architecture).tar.gz" -o tmp/cilium.tar.gz
+    #   tar -zxf tmp/cilium.tar.gz -C bin
+    #   chown "$(id -un)":"$(id -Gn)" bin/cilium
+    #   chmod +x bin/cilium
+    #   if [ "$(which cilium)" == "$(pwd)/bin/cilium" ]; then echo "-- bin/cilium installed successfully" >&3; fi
+    # fi
+  fi
+  if [[ "$(uname -s)" == *"Darwin"* ]]; then
+    echo "-- OS: MacOS" >&3
+    if [ ! -f bin/helm ] || $forceinstallbin; then
+      rm -f bin/helm
+      curl -L "https://get.helm.sh/helm-v3.15.2-darwin-$(arch).tar.gz" -o tmp/helm.tar.gz
+      tar -zxf tmp/helm.tar.gz -C tmp
+      mv tmp/darwin-"$(arch)"/helm bin/
+      chown "$(id -un)":"$(id -Gn)" bin/helm
+      chmod +x bin/helm
+      if [ "$(which helm)" == "$(pwd)/bin/helm" ]; then echo "-- bin/helm installed successfully" >&3; fi
+    fi
+    if [ ! -f bin/kubectl ] || $forceinstallbin; then
+      rm -f bin/kubectl
+      curl -L "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/darwin/$(arch)/kubectl" -o bin/kubectl
+      chown "$(id -un)":"$(id -Gn)" bin/kubectl
+      chmod +x bin/kubectl
+      if [ "$(which kubectl)" == "$(pwd)/bin/kubectl" ]; then echo "-- bin/kubectl installed successfully" >&3; fi
+    fi
+    if [ ! -f bin/jq ] || $forceinstallbin; then
+      rm -f bin/jq
+      curl -L "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-macos-$(arch)" -o bin/jq
+      chown "$(id -un)":"$(id -Gn)" bin/jq
+      chmod +x bin/jq
+      if [ "$(which jq)" == "$(pwd)/bin/jq" ]; then echo "-- bin/jq installed successfully" >&3; fi
+    fi
+    if [ ! -f bin/k9s ] || $forceinstallbin; then
+      rm -f bin/k9s
+      curl -L h"ttps://github.com/derailed/k9s/releases/download/v0.32.5/k9s_Darwin_$(arch).tar.gz" -o tmp/k9s.tar.gz
+      mkdir tmp/k9s
+      tar -zxf tmp/k9s.tar.gz -C tmp/k9s
+      mv tmp/k9s/k9s bin/
+      chown "$(id -un)":"$(id -Gn)" bin/k9s
+      chmod +x bin/k9s
+      if [ "$(which k9s)" == "$(pwd)/bin/k9s" ]; then echo "-- bin/k9s installed successfully" >&3; fi
+    fi
+    # if [ ! -f bin/cilium ] || $forceinstallbin; then
+    #   CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
+    #   curl -L "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-darwin-$(arch).tar.gz" -o tmp/cilium.tar.gz
+    #   tar -zxf tmp/cilium.tar.gz -C bin
+    #   chown "$(id -un)":"$(id -Gn)" bin/cilium
+    #   chmod +x bin/cilium
+    #   if [ "$(which cilium)" == "$(pwd)/bin/cilium" ]; then echo "-- bin/cilium installed successfully" >&3; fi
+    # fi
+  fi
+  which helm
+  which kubectl
+  which k9s
+  which jq
+  helm version
+  kubectl version --client=true
+  k9s version
+  jq --version
+}
+
+#######################################
+#######################################
+######### FUNCTION FixDNS #############
+#######################################
+#######################################
+function FixDNS() {
+  echo "-- Fixing CoreDNS IP addresses in kubelet config " >&3
+  COREDNS_POD_NAME1=$(kubectl get pod -l k8s-app=kube-dns -n kube-system --no-headers=true | awk 'NR==1{print $1}')
+  COREDNS_POD_NAME2=$(kubectl get pod -l k8s-app=kube-dns -n kube-system --no-headers=true | awk 'NR==2{print $1}')
+  COREDNS_IP1=$(kubectl get pod "$COREDNS_POD_NAME1" -n kube-system --template '{{.status.podIP}}')
+  COREDNS_IP2=$(kubectl get pod "$COREDNS_POD_NAME2" -n kube-system --template '{{.status.podIP}}')
+  echo "-- CoreDNS IP1: $COREDNS_IP1" >&3
+  echo "-- CoreDNS IP2: $COREDNS_IP2" >&3
+  for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+    (
+      ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}" DEBIAN_FRONTEND="noninteractive" i="$i" COREDNS_IP1="$COREDNS_IP1" COREDNS_IP2="$COREDNS_IP2" "bash -s" <<'____EOF____'
+#!/bin/bash
+trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
+if [ "$COREDNS_IP1" != "<no value>" ]; then
+  mkdir -p /tmp/kubeletconfigurationpatches
+  cd /tmp/kubeletconfigurationpatches
+  if [ "$COREDNS_IP2" != "<no value>" ]; then
+    echo "clusterDNS:
+- $COREDNS_IP1
+- $COREDNS_IP2
+clusterDomain: cluster.local
+resolvConf: /etc/resolv.conf" > 'kubeletconfiguration0+merge.yaml'
+  else
+    echo "clusterDNS:
+- $COREDNS_IP1
+clusterDomain: cluster.local
+resolvConf: /etc/resolv.conf" > 'kubeletconfiguration0+merge.yaml'
+  fi
+fi
+echo "-- Node $i: Upgrading kubelet configuration"
+kubeadm upgrade node phase kubelet-config --patches ./
+systemctl restart kubelet
+____EOF____
+    ) &
+  done
+  wait $!
+}
+
+#######################################
+#######################################
+############ FUNCTION unD #############
+#######################################
+#######################################
+function unD() {
+  echo "-- Uninstalling apps" >&3
+  NSLIST="$(kubectl get namespaces -o name | grep -v kube- | cut -c 11-)"
+  for ns in $NSLIST; do
+    echo "-- Uninstalling all resources in $ns " >&3
+    (
+      helm ls --all --short -n "$ns" | xargs -L1 helm delete -n "$ns"
+      kubectl delete all --all --namespace="$ns" --grace-period=0 --force
+      if [ "$ns" != "default" ]; then
+        kubectl delete ns "$ns" --grace-period=0 --force
+      fi
+    ) &
+  done
+  wait $!
+
+  if ! $1; then
+    echo "-- apps uninstalled (kube-network skipped)" >&3
+  else
+    echo "-- Uninstalling Multus" >&3
+    helm uninstall Multus -n kube-network &
+    echo "-- Uninstalling Flannel" >&3
+    helm uninstall flannel -n kube-network &
+    ns="kube-network"
+    echo "-- Uninstalling all resources in $ns " >&3
+    (
+      helm ls --all --short -n "$ns" | xargs -L1 helm delete -n "$ns"
+      kubectl delete all --all --namespace="$ns" --grace-period=0 --force
+      kubectl delete ns "$ns" --grace-period=0 --force
+    ) &
+    wait $!
+
+    for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+      echo "-- Node $i: Deleting DHCP demon, leftover NICs, and cni files" >&3
+      (
+      ssh -i "$MY_PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[i]}" i=$i bash <<'____EOF____'
+#!/bin/bash
+trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
+
+echo "-- Node $i: deleting leftover NICs"
+for nic in $(ip link show | grep -e cni -e flannel | awk -F@ '{print $1}' | awk '{print $2}'); do
+  ip link set $nic down
+  ip link delete $nic
+done
+
+echo "-- Node $i: Removing DHCP demon" >&3
+systemctl stop cni-dhcp.service
+systemctl disable cni-dhcp.service
+rm -f /etc/systemd/system/cni-dhcp.service
+systemctl daemon-reload
+
+echo "-- Node $i: Force stopping cni demon"
+kill -9 $(ps aux | grep "/opt/cni/bin" | awk '{print $2}')
+
+echo "-- Node $i: Deleting cni files"
+rm -rf /run/flannel
+rm -rf /opt/cni
+rm -rf /run/cni
+rm -rf /var/lib/cni
+rm -rf /etc/cni
+____EOF____
+      ) &
+    done
+    wait $!
+
+    echo "-- Restarting CoreDNS" >&3
+    kubectl delete pod --selector=k8s-app=kube-dns -n kube-system --grace-period=0 --force
+  fi
+  echo "-- Uninstalling Network-Attachment-Definitions" >&3
+  kubectl delete Network-Attachment-Definitions --all -A --grace-period=0 --force
+}
+
+
+#######################################
+#######################################
+######## FUNCTION sshCopyID ###########
+#######################################
+#######################################
+function sshCopyID() {
+  if [ "$MY_PRIVATE_KEY" == "" ]; then return 1; fi
+
+  if [ ! -f $MY_PRIVATE_KEY ]; then
+    echo "-- $MY_PRIVATE_KEY no found. Generating new keys" >&3
+    mkdir -p "$(dirname $MY_PRIVATE_KEY)"
+    ssh-keygen -t rsa -b 4096 -C "k8s" -f "$MY_PRIVATE_KEY" -N ""
+  else
+    echo "-- Using $MY_PRIVATE_KEY" >&3
+  fi
+  chmod 700 "$(dirname $MY_PRIVATE_KEY)"
+  chmod 600 "$MY_PRIVATE_KEY"
+  chmod 644 "$MY_PRIVATE_KEY.pub"
+  echo "PUBLIC KEY: "
+  cat "$MY_PRIVATE_KEY.pub"
+
+  WAIT_ALL_NODES_ONLINE
+  for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+    IP=${NODE_ARRAY[$i]}
+    echo "-- copying public key to $IP " >&3
+    ssh-copy-id -o LogLevel=QUIET -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" 1>&3
+    if [[ $? -eq 0 ]]; then
+      echo "-- NODE $i: ssh-copy-id successful"
+    else
+      echo "-- NODE $i: ssh-copy-id failed"
+      return 1
+    fi
+  done
+  return 0
+}
+
+#######################################
+#######################################
+########## FUNCTION deployAPP #########
+#######################################
+#######################################
+function deployAPP() {
+  VALUES+="--set workload.main.podSpec.annotations.\"k8s\.v1\.cni\.cncf\.io/networks=$NETWORK_ANNOTATION\" --set TZ=$KUBE_TZ "
+  VALUES="${VALUES//$'\r'/}"
+  echo "csv raw $(($j - 1)) -- $CURRENT_APP: Deploying .." >&3
+  echo "with values: $VALUES"
+  echo
+  echo -n "-- kubecsv added the following values: "
+  echo "${VALUES//--set/$'\n# --set'}"
+  NEW_APP_RAW=true
+  APP_NAMESPACE="app-$CURRENT_APP"
+  CMD="helm upgrade --install $CURRENT_APP --namespace $APP_NAMESPACE --create-namespace oci://tccr.io/truecharts/$CURRENT_HELM_CHART $VALUES"
+  echo "-- Running command: $CMD"
+  eval "$CMD"
+  # echo "-- $CURRENT_APP is been deployed .." >&3
+  unset VALUES
+  unset NETWORK_ANNOTATION
+}
+
+#######################################
+#######################################
+########## FUNCTION cleanUP ###########
+#######################################
+#######################################
+function cleanUP() {
+  rm -rf tmp
+  rm -rf logs
+  rm -rf *.BACKUP
+  rm -rf .*.BACKUP
+}
+
+#######################################
+#######################################
+####### FUNCTION END_OF_SCRIPT ########
+#######################################
+#######################################
+function END_OF_SCRIPT() {
+  if $CONTINUE; then
+    echo "-------------------------------------------------------------" >&3
+    echo "👍 Script executed successfully. Press any key to continue .." >&3
+    echo "-------------------------------------------------------------" >&3
+    read -r
+  fi
+}
+
+#######################################
+#######################################
+###### FUNCTION step0 1 2 3 4 5 #######
+#######################################
+#######################################
+function step0() {
+  binInstall
+  SWAPRemoval
+  response="$(curl -w '%{http_code}' -o /dev/null -ILks https://${NODE_ARRAY[0]}:6443)"
+  if [[ "$response" != *"000"* ]]; then
+    unD
+    for i in $(kubectl get nodes -o name | cut -c 6-); do
+      echo "-- Draaining and deleting $i" >&3
+      kubectl drain "$i" --force --grace-period=0
+      kubectl delete node "$i" --all --force --grace-period=0
+    done
+  fi
+
+  for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+    (
+      echo "-- NODE $i: Uninstalling (inc. reset kubeadm, firewall, files, NICs) ..." >&3
+      ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
+#!/bin/bash
+trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
+
+echo "-- Uninstalling in Node $i"
+if command -v kubeadm &> /dev/null; then
+    echo "-- NODE $i: Reseting k8s"
+    kubeadm reset --cleanup-tmp-dir --force 
+fi
+
+echo "-- NODE $i: Clearing firewall"
+iptables -F && iptables -t nat -F && iptables -t mangle -F && iptables -X
+ipvsadm --clear 
+
+echo "-- NODE $i: Uninstalling k8s (kubelet, kubeadm, and containerd)"
+apt-mark unhold kubelet kubeadm kubectl docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 
+for pkg in kubectl kubeadm kubelet ipvsadm docker-ce docker-ce-cli docker.io containerd.io docker-doc docker-build-plugin docker-compose-plugin docker-compose docker-compose-v2 podman-docker containerd runc temurin-21-jre containerd; do
+    apt purge -y --allow-change-held-packages $pkg 
+done
+systemctl stop $(systemctl -l | grep kube) 
+systemctl disable $(systemctl -l | grep kube) 
+
+echo "-- NODE $i: Removing gpg and source lists of kubernetes and adoptium"
+rm -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+rm -f /etc/apt/trusted.gpg.d/adoptium.gpg
+rm -f /etc/apt/sources.list.d/kubernetes.list
+rm -f /etc/apt/sources.list.d/adoptium.list
+apt update -y 
+
+systemctl daemon-reload 
+echo "-- NODE $i: Unmounting and deleting containerd, kubelet, cni, etcd and other kubernetes files and folders"
+umount -f /var/run/containerd/*/*/*/* 
+umount -f /var/lib/kubelet/*/*/*/*/* 
+rm -rf /opt/containerd
+rm -rf /var/lib/containerd
+rm -rf /var/lib/kubelet
+rm -rf /var/run/containerd
+rm -rf ~/.kube
+rm -rf /etc/kubernetes
+rm -rf /var/lib/etcd
+rm -f /run/flannel/subnet.env
+rm -rf /opt/cni
+rm -rf /run/cni
+rm -rf /var/lib/cni
+rm -rf /etc/cni
+rm -f /etc/apt/trusted.gpg.d/adoptium.gpg
+rm -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+rm -f /etc/apt/sources.list.d/kubernetes.list
+rm -f /etc/apt/sources.list.d/adoptium.list
+rm -rf /usr/libexec/kubernetes
+rm -rf /var/log/containers
+rm -rf /.kube
+rm -f /root/kubeletconfiguration0+merge.yaml
+rm -rf /tmp/*-save.txt
+rm -f /etc/modules-load.d/kubernetes.conf
+rm -f /etc/sysctl.d/98-kubernetes.conf
+sysctl --system 
+sed -i '/.*DNSStubListener=no.*/ c\#DNSStubListener=' /etc/systemd/resolved.conf
+
+echo "-- NODE $i: apt update autoremove autoclean"
+apt update -y
+apt autoremove -y --purge 
+apt autoclean -y 
+apt clean -y 
+
+echo "-- Node $i: deleting leftover NICs"
+for nic in $(ip link show | grep -e lxc -e cali -e cilium -e flannel -e tunl -e cni -e cbr | awk -F@ '{print $1}' | awk '{print $2}'); do
+  ip link set $nic down
+  ip link delete $nic
+done
+
+echo "-- NODE $i: Uninstall Completed"
+____EOF____
+    ) &
+  done
+  wait $!
+}
+
+##################################################################################
+##################################################################################
+function step1() {
+  echo "-- Creating and copying hosts file" >&3
+  echo "127.0.0.1 localhost" >tmp/hosts
+  for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+    IP=${NODE_ARRAY[$i]}
+    NODEHOSTNAME=$(ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" "hostname")
+    echo "$IP $NODEHOSTNAME" >>tmp/hosts
+  done
+  echo '
+::1     ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters' >>tmp/hosts
+  for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+    (
+      IP=${NODE_ARRAY[$i]}
+      ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" "mv /etc/hosts /etc/hosts.BACKUP"
+      scp -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS tmp/hosts "$SSH_USERNAME"@"$IP":/etc/
+    ) &
+  done
+  wait $!
+
+  for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+    (
+      IP=${NODE_ARRAY[$i]}
+      echo "-- NODE $i: Updating, upgrading and installing pre-requisites, please wait ..." >&3
+      ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
+#!/bin/bash
+trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
+echo "-- NODE $i: Creating folders and setting permissions"
+mkdir -p ~/.kube
+mkdir -p /opt/cni/bin
+mkdir -p /run/cni
+mkdir -p /etc/cni/net.d
+mkdir -p /etc/containerd
+chown -R "$(id -un)":"$(id -Gn)" /opt/cni
+chown -R "$(id -un)":"$(id -Gn)" /etc/cni
+chown -R "$(id -un)":"$(id -Gn)" /etc/containerd
+chown -R "$(id -un)":"$(id -Gn)" /run/cni
+chmod -R +r /opt/cni/bin
+
+echo "-- NODE $i: Disabling iptables"
+for cmd in iptables ip6tables iptables-legacy ip6tables-legacy; do
+  $cmd-save > /tmp/$cmd-save.txt 
+  $cmd -P INPUT ACCEPT 
+  $cmd -P FORWARD ACCEPT 
+  $cmd -P OUTPUT ACCEPT 
+  $cmd -t nat -F 
+  $cmd -t nat -X 
+  $cmd -t mangle -F 
+  $cmd -t mangle -X 
+  $cmd -F 
+  $cmd -X 
+done
+for suffex in raw mangle security nat filter; do
+  modprobe -f -r "ip_tables_$suffex" 
+  modprobe -f -r "ip6_tables_$suffex" 
+done
+update-alternatives --remove iptables /usr/sbin/iptables-legacy
+
+echo "-- NODE $i: Updating, upgrading and installing pre-requisites, please wait ..."
+apt update -y 
+apt upgrade -y 
+apt install -y \
+    apt-transport-https \
+    ca-certificates \
+    nfs-common \
+    curl \
+    gpg \
+    sudo \
+    wget \
+    dirmngr \
+    gnupg \
+    software-properties-common \
+    ipvsadm \
+    util-linux \
+    coreutils \
+    git \
+    rclone \
+    nano \
+    jq \
+    cifs-utils \
+    openvswitch-switch 
+
+echo "-- NODE $i: Enabling kernel modules, ip forwarding, disabling DNSStubListener and re-link resolv.conf"
+echo 'overlay
+br_netfilter' > /etc/modules-load.d/kubernetes.conf
+modprobe overlay
+modprobe br_netfilter
+echo 'net.bridge.bridge-nf-call-iptables=1
+net.bridge.bridge-nf-call-ip6tables=1
+net.bridge.bridge-nf-call-arptables=1
+net.ipv4.ip_forward=1
+net.ipv6.conf.all.forwarding=1' > /etc/sysctl.d/98-kubernetes.conf
+sed -i '/#DefaultTimeoutStopSec=90s/c\DefaultTimeoutStopSec=10s' /etc/systemd/system.conf
+sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/&usbcore.autosuspend=-1 /' /etc/default/grub
+sed -i '/.*#DNSStubListener=.*/ c\DNSStubListener=no' /etc/systemd/resolved.conf
+update-grub 
+sysctl --system 
+rm -f /etc/resolv.conf
+ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
+resolvectl flush-caches 
+systemctl restart systemd-resolved
+echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+apt-get install -y -q
+
+echo "-- NODE $i: Installing gpg for jave (adoptium) and kubernetes"
+mkdir -p -m 755 /etc/apt/keyrings
+mkdir -p /etc/apt/sources.list.d/
+mkdir -p /etc/apt/trusted.gpg.d/
+apt update -y 
+# kubernetes
+curl --silent -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | gpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg 
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' > /etc/apt/sources.list.d/kubernetes.list 
+# adoptium
+curl --silent -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --batch --yes --dearmor -o /etc/apt/trusted.gpg.d/adoptium.gpg
+echo "deb https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" > /etc/apt/sources.list.d/adoptium.list
+apt update -y 
+
+echo "-- NODE $i: Installing Jave"
+apt install -y temurin-21-jre 
+
+echo "-- NODE $i: Installing containerd"
+apt install -y containerd
+
+if [ "$i" == "0" ]; then
+  echo "-- NODE $i: Getting latest kubeadm version"
+  apt-cache policy kubeadm | grep Candidate | awk '{print $2}' > /tmp/K8S_VERSION
+fi
+____EOF____
+    ) &
+  done
+  wait $!
+
+  if [ "$K8S_VERSION" == "" ]; then
+    scp -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}":/tmp/K8S_VERSION tmp/K8S_VERSION
+    DEFAULT_VERSION="$(cat tmp/K8S_VERSION)"
+    readVar K8S_VERSION "$DEFAULT_VERSION" "Please entre k8s version" 1 30
+  fi
+
+  for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+    (
+      echo "-- NODE $i: Installing kubernetes (version: $K8S_VERSION)" >&3
+      ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" K8S_VERSION="$K8S_VERSION" "bash -s" <<'____EOF____'
+#!/bin/bash
+trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
+echo "-- NODE $i: Installing kubernetes (version: $K8S_VERSION)"
+apt install -y --allow-change-held-packages kubelet=$K8S_VERSION kubeadm=$K8S_VERSION kubectl=$K8S_VERSION 
+apt-mark hold kubelet kubeadm kubectl containerd  
+sh -c "containerd config default > /etc/containerd/config.toml"  
+sed -i 's/ SystemdCgroup = false/ SystemdCgroup = true/' /etc/containerd/config.toml
+systemctl daemon-reload 
+systemctl enable --now kubelet.service
+systemctl enable --now containerd.service
+
+echo "-- NODE $i: Pulling kubernetes images"
+kubeadm config images pull --kubernetes-version $(echo "$K8S_VERSION" | sed 's/-[0-9].*//')
+____EOF____
+    ) &
+  done
+  wait $!
+}
+
+##################################################################################
+##################################################################################
+function step2() {
+  echo "-- Initializing kubernetes version: $(echo "$K8S_VERSION" | sed 's/-[0-9].*//')" >&3
+  i=0
+  ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" CLUSTER_CIDR_FIRST_TWO_OCTETS="$CLUSTER_CIDR_FIRST_TWO_OCTETS" MASTER_IP="${NODE_ARRAY[0]}" K8S_VERSION="$K8S_VERSION" SSH_USERNAME="$SSH_USERNAME" "bash -s" <<'____EOF____'
+#!/bin/bash
+trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
+echo "-- NODE $i: Initializing k8s master version: $(echo "$K8S_VERSION" | sed 's/-[0-9].*//')"
+kubeadm init  --kubernetes-version $(echo "$K8S_VERSION" | sed 's/-[0-9].*//') \
+              --apiserver-advertise-address=$MASTER_IP \
+              --pod-network-cidr=${CLUSTER_CIDR_FIRST_TWO_OCTETS}.0.0/16
+
+echo "-- NODE $i: Creating join.sh"
+kubeadm token create --print-join-command > ~/.kube/join.sh
+
+echo "-- NODE $i: Auto kill stuck failed pods every 10 minutes"
+cat <<'EOF' >/etc/systemd/system/kill-failed-pods
+#!/bin/bash
+while true; do
+  for ns in $(kubectl --kubeconfig "/etc/kubernetes/admin.conf" get namespaces -o name | cut -c 11-); do
+    for pod in $(kubectl --kubeconfig "/etc/kubernetes/admin.conf" get pods -n "$ns" -o go-template="{{ range  \$item := .items }}{{ range .status.conditions }}{{ if (or (and (eq .type \"PodScheduled\") (eq .status \"False\")) (and (eq .type \"Ready\") (eq .status \"False\"))) }}{{ \$item.metadata.name}} {{ end }}{{ end }}{{ end }}"); do
+        kubectl --kubeconfig "/etc/kubernetes/admin.conf" delete pods -n "$ns" "$pod" --grace-period=0 --force
+    done
+  done
+  sleep 600
+done
+EOF
+chmod +x /etc/systemd/system/kill-failed-pods
+
+cat <<EOF >/lib/systemd/system/kill-failed-pods.service
+[Unit]
+Description=kill-failed-pods
+
+[Service]
+Type=simple
+RemainAfterExit=yes
+ExecStart=/etc/systemd/system/kill-failed-pods
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable --now kill-failed-pods
+____EOF____
+  echo "-- Copying kubeconfig" >&3
+  copyKubeconfig
+
+  echo "-- Copying join command file to this machine" >&3
+  rm -f tmp/join.sh
+  scp -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}":~/.kube/join.sh tmp/
+  chmod +x tmp/join.sh
+  for ((i = 1; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+    echo "-- NODE $i: Joining the cluster" >&3
+    (
+      IP=${NODE_ARRAY[$i]}
+      scp -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS tmp/join.sh "$SSH_USERNAME"@"$IP":~/.kube/join.sh
+      ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
+#!/bin/bash
+trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
+chmod +x $HOME/.kube/join.sh
+echo "-- NODE $i: Joining k8s cluster"
+$HOME/.kube/join.sh
+echo "-- NODE $i: Completed"
+____EOF____
+    ) &
+  done
+  wait $!
+}
+
+##################################################################################
+##################################################################################
+function step3() {
+  echo "-- Adding helm repos" >&3
+  helm repo add flannel https://flannel-io.github.io/flannel/
+  helm repo add bitnami https://charts.bitnami.com/bitnami
+
+  echo "-- Updating helm repos" >&3
+  helm repo update
+
+  if [ -f $KUBECONFIG ]; then
+    ## Allow master node to schedule pods
+    if [ ${#NODE_ARRAY[@]} -eq 1 ] || [ "$INC_MASTER" == "y" ]; then
+      echo "-- Allowing master node to schedule app ..." >&3
+      kubectl taint nodes node0 node-role.kubernetes.io/control-plane:NoSchedule-
+    fi
+
+    ## Create namespaces
+    echo "-- Creating kube-network namespaces" >&3
+    kubectl create ns kube-network
+    kubectl label --overwrite ns kube-network pod-security.kubernetes.io/enforce=privileged
+
+    for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+      echo "-- Node $i: Creating subnet.env, downloading cni bins, and running dhcp daemon" >&3
+      (
+      ssh -i "$MY_PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[i]}" i=$i CLUSTER_CIDR_FIRST_TWO_OCTETS=$CLUSTER_CIDR_FIRST_TWO_OCTETS bash <<'____EOF____'
+#!/bin/bash
+trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
+
+echo "-- Node $i: Creating subnet.env"
+mkdir -p /run/flannel
+rm -f /run/flannel/subnet.env
+cat << EOF > /run/flannel/subnet.env
+FLANNEL_NETWORK=${CLUSTER_CIDR_FIRST_TWO_OCTETS}.0.0/16
+FLANNEL_SUBNET=${CLUSTER_CIDR_FIRST_TWO_OCTETS}.$i.0/24
+FLANNEL_MTU=1450
+FLANNEL_IPMASQ=true
+EOF
+
+echo "-- NODE $i: Downloading CNI binaries cni-plugins-linux-$( [ $(uname -m) = aarch64 ] && echo arm64 || echo amd64)-v1.5.0.tgz"
+mkdir -p /opt/cni/bin
+curl -s -L "https://github.com/containernetworking/plugins/releases/download/v1.5.0/cni-plugins-linux-$( [ $(uname -m) = aarch64 ] && echo arm64 || echo amd64)"-v1.5.0.tgz | tar xzf - -C /opt/cni/bin
+chown -R "$(id -un)":"$(id -Gn)" /opt/cni
+
+echo "-- NODE $i: Creating /etc/systemd/system/cni-dhcp.service"
+rm -f /run/cni/dhcp.sock
+rm -f /etc/systemd/system/cni-dhcp.service
+cat >/etc/systemd/system/cni-dhcp.service <<EOF
+[Unit]
+Description=Executing/opt/cni/bin/dhcp as service
+After=multi-user.target
+
+[Service]
+Type=idle
+User=root
+ExecStart=/opt/cni/bin/dhcp daemon
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+chmod 644 /etc/systemd/system/cni-dhcp.service
+systemctl daemon-reload
+systemctl enable --now cni-dhcp.service
+systemctl status cni-dhcp.service
+____EOF____
+      ) &
+    done
+    wait $!
+    echo "-- Deploying flannel" >&3
+    helm upgrade --install flannel \
+      --namespace kube-network --create-namespace \
+      --set podCidr="${CLUSTER_CIDR_FIRST_TWO_OCTETS}.0.0/16" \
+      flannel/flannel
+
+    for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+      (
+        echo "-- Node $i: fixing flannel/cni NIC" >&3
+        ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
+#!/bin/bash
+trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Is)]  "; set -x' DEBUG
+for nic in $(ip link show | grep -e cni -e flannel | awk -F@ '{print $1}' | awk '{print $2}'); do
+  ip link set $nic down
+  ip link delete $nic
+done
+systemctl restart containerd 
+systemctl restart kubelet 
+____EOF____
+      ) &
+    done
+    wait $!
+
+    echo "-- Deploying multus" >&3
+    helm upgrade --install multus bitnami/multus-cni \
+                 --namespace kube-network --create-namespace \
+                 --set namespaceOverride="kube-network" \
+                 --set CNIVersion="1.0.0"
+
+    echo "-- Restarting CoreDNS" >&3
+    kubectl delete pod --selector=k8s-app=kube-dns -n kube-system --grace-period=0 --force
+    echo "-- waiting for flannel and Multus" >&3
+    while [ "$(kubectl get pods -A -l app=flannel -ojson | jq '.items[0].status.phase')" != "\"Running\"" ] || [ "$(kubectl get pods -A -l app.kubernetes.io/name=multus-cni -ojson | jq '.items[0].status.phase')" != "\"Running\"" ]; do
+      sleep 5
+    done
+    sleep 5
+    if [ "$(kubectl get pods -n kube-system -l k8s-app=kube-dns -ojson | jq '.items[0].status.phase')" != "\"Running\"" ]; then
+      kubectl delete pod --selector=k8s-app=kube-dns -n kube-system --force
+      echo "-- waiting for CoreDNS" >&3
+      while [ "$(kubectl get pods -n kube-system -l k8s-app=kube-dns -ojson | jq '.items[0].status.phase')" != "\"Running\"" ]; do
+        sleep 5
+      done
+    fi
+    sleep 5
+    FixDNS
+    echo "-- Installing prometheus-operator" >&3
+    # https://github.com/truecharts/charts/blob/master/charts/system/prometheus-operator/values.yaml
+    helm upgrade --install prometheus-operator oci://tccr.io/truecharts/prometheus-operator --namespace=kube-network
+    # echo "-- Installing metrics-server" >&3
+    # helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+    # helm repo update
+    # helm upgrade --install metrics-server -n kube-network metrics-server/metrics-server
+    # echo "-- Installing cloudnative-pg" >&3
+    # # https://github.com/truecharts/charts/blob/master/charts/system/cloudnative-pg/values.yaml
+    # helm upgrade --install cloudnative-pg oci://tccr.io/truecharts/cloudnative-pg --namespace=kube-truecharts
+    # echo "-- Installing cert-manager" >&3
+    # # https://github.com/truecharts/charts/blob/master/charts/system/cert-manager/values.yaml
+    # helm upgrade --install cert-manager oci://tccr.io/truecharts/cert-manager --namespace=kube-truecharts
+  else
+    echo "Please do step 2 before kubernetes cluster is not installed .." >&3
+  fi
+}
+
+##################################################################################
+##################################################################################
+function step4() {
+  if [ -f deploy.csv ]; then
+    echo "Do you want to overwrite deploy.csv? (N/y) [TIMEOUT: 30s]" >&3
+    read -t 30 -r CREATEDEPLOYFILE
+  else
+    CREATEDEPLOYFILE="y"
+  fi
+  if [[ $CREATEDEPLOYFILE == "y" ]]; then
+    rm -f deploy.csv
+    deployFileCreation
+    echo "-- deploy.csv has been created" >&3
+  fi
+}
+
+##################################################################################
+##################################################################################
+function step5() {
+  NEW_APP_RAW=true
+  CURRENT_APP=""
+  CURRENT_HELM_CHART=""
+  j=1
+  while IFS="," read -r app_name helm_truechart storage_name storage_enabled storage_path storage_subPath storage_server storage_type storage_mountPath nw_master_nic nw_mac nw_address_with_subnet nw_gateway nw_dns1 nw_dns2 run_as_user run_as_group privileged extra_helm_values; do
+    if (($j > 1)) && [ "$app_name" != "$CURRENT_APP" ]; then
+      deployAPP
+    fi
+    CURRENT_APP=$app_name
+    CURRENT_HELM_CHART=$helm_truechart
+    APP_NAMESPACE="app-$CURRENT_APP"
+    if $NEW_APP_RAW; then
+      echo "csv raw $j -- $app_name: Building values  .."
+      kubectl create ns "$APP_NAMESPACE"
+      NEW_APP_RAW=false
+    fi
+    if [ "$storage_name" != "" ]; then
+      echo "csv raw $j -- $app_name: Adding storage configuration \"$storage_name\" to the values .."  >&3
+      if [ "$storage_enabled" != "" ]; then
+        VALUES+="--set persistence.$storage_name.enabled=$storage_enabled "
+      fi
+      if [ "$storage_path" != "" ]; then
+        VALUES+="--set persistence.$storage_name.path=\"$storage_path\" "
+      fi
+      if [ "$storage_subPath" != "" ]; then
+        VALUES+="--set persistence.$storage_name.subPath=\"$storage_subPath\" "
+      fi
+      if [ "$storage_server" != "" ]; then
+        VALUES+="--set persistence.$storage_name.server=\"$storage_server\" "
+      fi
+      if [ "$storage_type" != "" ]; then
+        VALUES+="--set persistence.$storage_name.type=\"$storage_type\" "
+      fi
+      if [ "$storage_mountPath" != "" ]; then
+        VALUES+="--set persistence.$storage_name.mountPath=\"$storage_mountPath\" "
+      fi
+    fi
+    if [ "$nw_master_nic" != "" ]; then
+      MAC=$nw_mac
+      MAC_REGEX="^([a-fA-F0-9]{2}:){5}[a-fA-F0-9]{2}$"
+      if ! [[ $MAC =~ $MAC_REGEX ]]; then MAC="$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1))"; fi
+      echo "csv raw $j -- $app_name: Using mac address: $MAC" >&3
+      ip="$(echo $nw_address_with_subnet | cut -d'/' -f1)"
+      if [[ $ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "csv raw $j -- $app_name: Adding STATIC IP ($nw_address_with_subnet) network configuration $nw_master_nic to the values .." >&3
+        kubectl delete network-attachment-definitions.k8s.cni.cncf.io "cbr1-$nw_master_nic" -n "$APP_NAMESPACE"
+        cat <<EOF | kubectl create -f -
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: cbr1-$nw_master_nic
+  namespace: $APP_NAMESPACE
+spec:
+  config: '{
+      "cniVersion": "1.0.0",
+      "name": "cbr1-$nw_master_nic",
+      "type": "macvlan",
+      "isDefaultGateway": true,
+      "mode": "bridge",
+      "master": "$nw_master_nic",
+      "mac": "$MAC",
+      "ipam": {
+        "type": "static",
+        "addresses":
+        [
+          {
+            "address": "$nw_address_with_subnet",
+            "gateway": "$nw_gateway"
+          }
+        ],
+        "routes":
+        [
+          {
+            "dst": "0.0.0.0/0"
+          }
+        ]
+      },
+      "dns":
+      {
+        "nameservers":
+        [
+          "$nw_dns1",
+          "$nw_dns2"
+        ]
+      }
+    }'
+EOF
+        if [ "$NETWORK_ANNOTATION" == "" ]; then
+          NETWORK_ANNOTATION="cbr1-$nw_master_nic"
+        else
+          NETWORK_ANNOTATION+="\,cbr1-$nw_master_nic"
+        fi
+      else
+        echo "csv raw $j -- $app_name: Adding DHCP ($MAC) network configuration $nw_master_nic to the values .." >&3
+        kubectl delete network-attachment-definitions.k8s.cni.cncf.io "cbr2-$nw_master_nic" -n "$APP_NAMESPACE"
+        cat <<EOF | kubectl create -f -
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: cbr2-$nw_master_nic
+  namespace: $APP_NAMESPACE
+spec:
+  config: '{
+      "cniVersion": "1.0.0",
+      "name": "cbr2-$nw_master_nic",
+      "plugins": [
+        {
+          "cniVersion": "1.0.0",
+          "type": "macvlan",
+          "mode": "bridge",
+          "mac": "$MAC",
+          "master": "$nw_master_nic",
+          "isDefaultGateway": false,
+          "enableIPv6": true,
+          "ipam": {
+            "type": "dhcp"
+          }
+        }
+      ]
+    }'
+EOF
+        if [ "$NETWORK_ANNOTATION" == "" ]; then
+          NETWORK_ANNOTATION="cbr2-$nw_master_nic"
+        else
+          NETWORK_ANNOTATION+="\,cbr2-$nw_master_nic"
+        fi
+      fi
+    fi
+    if [ "$run_as_user" != "" ]; then
+      echo "csv raw $j -- $app_name: Adding runAsUser: $run_as_user to the values .." >&3
+      VALUES+="--set securityContext.container.runAsUser=$run_as_user "
+    fi
+    if [ "$run_as_group" != "" ]; then
+      echo "csv raw $j -- $app_name: Adding runAsGroup: $run_as_group to the values .." >&3
+      VALUES+="--set securityContext.container.runAsGroup=$run_as_group "
+    fi
+    if [ "$privileged" != "" ]; then
+      echo "csv raw $j -- $app_name: Adding privileged: $privileged to the values .." >&3
+      VALUES+="--set securityContext.container.privileged=$privileged "
+    fi
+    if [ "$extra_helm_values" != "" ]; then
+      echo "csv raw $j -- $app_name: Adding extra values: $extra_helm_values .." >&3
+      VALUES+="$extra_helm_values "
+    fi
+    j=$(($j + 1))
+  done < <(tail -n +2 deploy.csv)
+  deployAPP
+}
+
+##################################################################################
+##################################################################################
+##################################################################################
+##################################################################################
+##################################################################################
+##################################################################################
+##################################################################################
+##################################################################################
+##################################################################################
+##################################################################################
+##################################################################################
+##################################################################################
+echo "---------------------------------------------------------------" >&3
+echo "Welcome to kubecsv script" >&3
+echo "---------------------------------------------------------------" >&3
+echo "Please answer the following questions to create the environment" >&3
+echo "---------------------------------------------------------------" >&3
+while ! IS_ALL_NODES_ONLINE; do
+  . .env
+  readArrayVar NODE_ARRAY "Please entre kubernetes cluster's nodes IP addresses the first one is the master (seperate IPs with SPACE)" "$(IFS=' ' ; echo "$NODE_ARRAY_DEFAULT" )"
+done
+while ! sshCopyID; do
+  . .env
+  readVar MY_PRIVATE_KEY "$PRIVATE_KEY_DEFAULT" "Please enter the absolute path for your private key. It will be created if does not exist. The default value is recommended"
+  readVar SSH_USERNAME "$SSH_USERNAME_DEFAULT" "Please entre the SSH username"
+done
+readVar KUBECONFIG "$KUBECONFIG_DEFAULT" "Please entre the path for KUBECONFIG" 1
+readVar CLUSTER_CIDR_FIRST_TWO_OCTETS "$CLUSTER_CIDR_DEFAULT" "Please entre the first two octets of the subnet 16 of the cluster CIDR (10.244 means 10.244.0.0/16)" 1
+readVar KUBE_TZ "$TZ_DEFAULT" "Please entre your Time Zone" 1
+readVar INC_MASTER "y" "Do you want to allow master node to schedule apps (entre y or n)" 1
+
+##############################################################################################################
+binInstall false
+( export )
+CONTINUE=true
+while $CONTINUE; do
+  clear
+  . .env
+  if [ "$1" == "" ]; then
+    echo "-----------------------------------------------------------" >&3
+    echo "Welcome to KUBECSV .." >&3
+    echo "LOG FILE: $LOG_FILE" >&3
+    echo "KUBECONFIG: $KUBECONFIG" >&3
+    echo "SSH KEYS: $MY_PRIVATE_KEY"  >&3
+    echo "kubectl bin: $(which kubectl)"  >&3
+    echo "-----------------------------------------------------------" >&3
+    echo "(q)    < Quit (and remove tmp and logs folders)" >&3
+    echo "-----------------------------------------------------------" >&3
+    echo "------------------------- INSTALL -------------------------" >&3
+    echo "-----------------------------------------------------------" >&3
+    echo "[0].....Uninstall Everything" >&3
+    echo "[1].....Prepare hosts and install pre-requisitess (apt install)" >&3
+    echo "[2].....Create kubernetes cluster (kubeadm init)" >&3
+    echo "[3].....Deploy kubernetes network (flannel and multus)" >&3
+    echo "[4].....Generate deploy.csv (example content)" >&3
+    echo "[5].....Deploy deploy.csv" >&3
+    echo "-----------------------------------------------------------" >&3
+    echo "-------------------------- TOOLS --------------------------" >&3
+    echo "-----------------------------------------------------------" >&3
+    echo "(un3)...(un)do step 3 and 5 (deleting all apps and kube-network)" >&3
+    echo "(un5)...(un)do step 5 (deleting all apps)" >&3
+    echo "(b).....(b)inaries installation locally (helm, kubectl, jq and k9s)" >&3
+    echo "(k).....(k)9s - monitor K8s cluster status" >&3
+    echo "(c).....(c)opy kubeconfig file from the master node" >&3
+    echo "(n).....(n)etwork dignostic tool (nstools pod deployment)" >&3
+    echo "(d).....(d)ns fix" >&3
+    echo "(s).....(s)wap partation removal" >&3
+    echo "(R).....[R]EBOOT ALL NODES" >&3
+    echo "(all)...(all) installation steps at once" >&3
+    echo "-----------------------------------------------------------" >&3
+    read -r OPTION
+  else
+    OPTION=$1
+    CONTINUE=false
+  fi
+  
+  case $OPTION in
+  q) ## QUIT AND CLEAN UP
+    echo "-- Cleaning up " >&3
+    cleanUP
+    exit 0
+    ;;
+  c) ## Create kubeconfig file
+    echo "-- Copying kubeconfig to kubeconfig" >&3
+    copyKubeconfig
+    END_OF_SCRIPT
+    ;;
+  s) ## Remove swap partation and reboot
+    echo "-- Removing SWAP" >&3
+    SWAPRemoval
+    END_OF_SCRIPT
+    ;;
+  b)
+    echo "-- Installing binaries" >&3
+    binInstall
+    END_OF_SCRIPT
+    ;;
+  d)
+    echo "-- Fixing DNS" >&3
+    FixDNS
+    END_OF_SCRIPT
+    ;;
+  k) ## k9S - Monitor K8s cluster status
+    echo "-- Running k9s" >&3
+    kubectl version
+    k9s version
+    k9s 
+    END_OF_SCRIPT
+    ;;
+  n) ## Deploy dns tools
+    echo "-- Running dnstool container" >&3
+    runDNSTool
+    END_OF_SCRIPT
+    ;;
+  R) ## Reboot all nodes
+    echo "-- Rebooting all nodes" >&3
+    RESTART_ALL_NODES
+    END_OF_SCRIPT
+    ;;
+  un5) ## Undeploy deployment
+    echo "-- Undeploying all apps" >&3
+    unD false
+    END_OF_SCRIPT
+    ;;
+  un3) ## Undeploy deployment
+    echo "-- Undeploying all apps including kube-network namespace" >&3
+    unD
+    END_OF_SCRIPT
+    ;;
+  0)
+    echo "------[ STEP 0 (apt uninstall) STARTED ]------" >&3
+    step0
+    echo "------[ STEP 0 (apt uninstall) COMPLETED ]------" >&3
+    END_OF_SCRIPT
+    ;;
+  1)
+    echo "------[ STEP 1 (apt install) STARTED ]------" >&3
+    step1
+    echo "------[ STEP 1 (apt install) COMPLETED ]------" >&3
+    END_OF_SCRIPT
+    ;;
+  2)
+    echo "------[ STEP 2 (cluster creation) STARTED ]------" >&3
+    step2
+    echo "------[ STEP 2 (cluster creation) COMPLETED ]------" >&3
+    END_OF_SCRIPT
+    ;;
+  3)
+    echo "------[ STEP 3 (network deployment) STARTED ]------" >&3
+    step3
+    echo "------[ STEP 3 (network deployment) COMPLETED ]------" >&3
+    END_OF_SCRIPT
+    ;;
+  4)
+    echo "------[ STEP 4 (deploy.csv creation) STARTED ]------" >&3
+    step4
+    echo "------[ STEP 4 (deploy.csv creation) COMPLETED ]------" >&3
+    END_OF_SCRIPT
+    ;;
+  5)
+    echo "------[ STEP 5 (deploy.csv deployment STARTED ]------" >&3
+    step5
+    echo "------[ STEP 5 (deploy.csv deployment COMPLETED ]------" >&3
+    END_OF_SCRIPT
+    ;;
+  all)
+    echo "------[  STEP 0 (apt uninstall) STARTED  ]------" >&3
+    step0
+    echo "------[  STEP 0 (apt uninstall) COMPLETED - STEP 1 (apt install) WILL START IN 10 SECONDS  ]------" >&3
+    sleep 10
+    step1
+    echo "------[  STEP 1 (apt install) COMPLETED - STEP 2 (cluster creation) WILL START IN 10 SECONDS  ]------" >&3
+    sleep 10
+    step2
+    echo "------[  STEP 2 (cluster creation) COMPLETED - STEP 3 (network deployment) WILL START IN 10 SECONDS  ]------" >&3
+    sleep 10
+    step3
+    echo "------[  STEP 3 (network deployment) COMPLETED - STEP 4 (deploy.csv creation) WILL START IN 10 SECONDS  ]------" >&3
+    sleep 10
+    step4
+    echo "------[  STEP 4 (deploy.csv creation) COMPLETED - STEP 5 (deploy.csv deployment) WILL START IN 10 SECONDS  ]------" >&3
+    sleep 10
+    step5
+    echo "------[ STEP 5 (deploy.csv deployment) COMPLETED - ALL STEPS COMPLETED ]------" >&3
+    END_OF_SCRIPT
+    ;;
+  *) ## Invalid option
+    echo "--?-- Invalid option" >&3
+    sleep 1
+    ;;
+  esac
+done
