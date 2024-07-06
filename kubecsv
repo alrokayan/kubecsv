@@ -145,9 +145,9 @@ function deployFileCreation() {
     readVar CSV_IP "$CSV_IP_DEFAULT" "Give example of a valid local IP?" $READVARASK >&3
     readVar CSV_CIDR "$CSV_CIDR_DEFAULT" "What's the CIDR suffex for $CSV_IP?" $READVARASK >&3
     export CSV_CIDR="${CSV_CIDR//$'/'/}"
-    readVar CSV_GW "$CSV_GW_DEFAULT" "What's the gateway for $CSV_IP1?" $READVARASK >&3
-    readVar CSV_DNS1 "$CSV_DNS1_DEFAULT" "What's the DNS1 for $CSV_IP1?" $READVARASK >&3
-    readVar CSV_DNS2 "$CSV_DNS2_DEFAULT" "hat's the DNS2 for $CSV_IP1?" $READVARASK >&3
+    readVar CSV_GW "$CSV_GW_DEFAULT" "What's the gateway for $CSV_IP?" $READVARASK >&3
+    readVar CSV_DNS1 "$CSV_DNS1_DEFAULT" "What's the DNS1 for $CSV_IP?" $READVARASK >&3
+    readVar CSV_DNS2 "$CSV_DNS2_DEFAULT" "hat's the DNS2 for $CSV_IP?" $READVARASK >&3
     if [ "$CSV_MASTERNIC" == "" ]; then CSV_MASTERNIC=$CSV_MASTERNIC_DEFAULT; fi
     if [ "$CSV_LARGENFSPATH" == "" ]; then CSV_LARGENFSPATH=$CSV_LARGENFSPATH_DEFAULT; fi
     if [ "$CSV_NFSSERVER" == "" ]; then CSV_NFSSERVER=$CSV_NFSSERVER_DEFAULT; fi
