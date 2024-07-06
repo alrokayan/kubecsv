@@ -6,3 +6,4 @@ bin
 .ssh
 .env.BACKUP
 .env
+kubeconfig

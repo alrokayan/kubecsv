@@ -250,9 +250,10 @@ function RESTART_ALL_NODES() {
 #######################################
 #######################################
 function copyKubeconfig() {
-  echo "-- Creating $KUBECONFIG" >&3
-  i=0
-  ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
+  if ! [ -f $KUBECONFIG ]; then
+    echo "-- Creating $KUBECONFIG" >&3
+    i=0
+    ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
 #!/bin/bash
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 rm -f ~/.kube/config
@@ -261,17 +262,14 @@ chown "$(id -un)":"$(id -Gn)" ~/.kube/config
 chmod g+r ~/.kube/config 
 chmod go-r ~/.kube/config 
 ____EOF____
-  rm -f "$KUBECONFIG".BACKUP
-  mv "$KUBECONFIG" "$KUBECONFIG".BACKUP
-  scp -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}":~/.kube/config "$KUBECONFIG"
-  chown "$(id -un)":"$(id -Gn)" "$KUBECONFIG"
-  chmod g+r "$KUBECONFIG"
-  chmod go-r "$KUBECONFIG"
-  for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
-    echo "-- NODE $i: Copying kubeconfig to ~/.kube/config" >&3
-    (scp -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$KUBECONFIG" "$SSH_USERNAME"@"${NODE_ARRAY[$i]}":~/.kube/config) &
-  done
-  wait $!
+    rm -f "$KUBECONFIG".BACKUP
+    mv "$KUBECONFIG" "$KUBECONFIG".BACKUP
+    scp -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}":~/.kube/config "$KUBECONFIG"
+    chown "$(id -un)":"$(id -Gn)" "$KUBECONFIG"
+    chmod g+r "$KUBECONFIG"
+    chmod go-r "$KUBECONFIG"
+    wait $!
+  fi
 }
 
 #######################################
@@ -717,6 +715,7 @@ function END_OF_SCRIPT() {
 #######################################
 function step0() {
   binInstall
+  copyKubeconfig
   SWAPRemoval
   response="$(curl -w '%{http_code}' -o /dev/null -ILks https://${NODE_ARRAY[0]}:6443)"
   if [[ "$response" != *"000"* ]]; then
@@ -1022,6 +1021,11 @@ systemctl enable --now kill-failed-pods
 ____EOF____
   echo "-- Copying kubeconfig" >&3
   copyKubeconfig
+  for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+    echo "-- NODE $i: Copying kubeconfig to ~/.kube/config" >&3
+    (scp -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$KUBECONFIG" "$SSH_USERNAME"@"${NODE_ARRAY[$i]}":~/.kube/config) &
+  done
+  wait $!
 
   echo "-- Copying join command file to this machine" >&3
   rm -f tmp/join.sh
@@ -1048,6 +1052,7 @@ ____EOF____
 ##################################################################################
 ##################################################################################
 function step3() {
+  copyKubeconfig
   echo "-- Adding helm repos" >&3
   helm repo add flannel https://flannel-io.github.io/flannel/
   helm repo add bitnami https://charts.bitnami.com/bitnami
@@ -1197,6 +1202,7 @@ function step4() {
 ##################################################################################
 ##################################################################################
 function step5() {
+  copyKubeconfig
   NEW_APP_RAW=true
   CURRENT_APP=""
   CURRENT_HELM_CHART=""
@@ -1450,6 +1456,7 @@ while $CONTINUE; do
     ;;
   k) ## k9S - Monitor K8s cluster status
     echo "-- Running k9s" >&3
+    copyKubeconfig
     kubectl version
     k9s version
     k9s 
