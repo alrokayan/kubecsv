@@ -2,6 +2,8 @@
 
 The `kubecsv` script is a utility script runs on MacOS and Linux designed for easy installation of Kubernetes cluster and deploying apps from a simple csv file, deploy.csv (check examples) on set of Ubuntu 22.04 host(s). It has beeen tested on xcp-ng VMs and bare-metal.
 
+![screen.gif](assets/gifs/screen.gif)
+
 ## Helpers
 This shell script is using:
 1- **kubeadm**: for kubernetes installation
@@ -16,6 +18,20 @@ This shell script is using:
 curl -fsSL https://raw.githubusercontent.com/alrokayan/kubecsv/main/kubecsv -o kubecsv && chmod +x kubecsv && ./kubecsv
 ```
 Then go throug the steps 0 to 5, using an interactive interface.
+
+## INPUT
+![homelab.csv.png](assets/images/csv/homelab.csv.png)
+*csv file as an input. Step 4 in the script will autogenerate one for you, also you can find several csv files as example in `examples` folder of this repo*
+
+## Output
+![homelab.csv.png](assets/images/results/homelab.csv.png)
+*That's the result after the deployment of above homelab csv file*
+
+## Edit
+The best way to edit csv is via a CSV Edit extention in Studio Code, using MS Excel, Using Google Sheets (import as csv/export as csv), or just a csv coloroing extention in Studio Code.
+
+![homelab.csv.png](assets/images/csv-edit/homelab.csv.png)
+*That's how the csv file looks like openning it with janisdd.vscode-edit-csv*
 
 ## CSV Columns
 The file must be named `deploy.csv` and put in the same directory where you are ruuning `kubecsv`. The CSV columns description are:
@@ -85,25 +101,25 @@ Mac or Linux as a local machine (the machine that will run the script). Regardin
 ### 1. Multiple Home Assistant
 With this script you can deploy multiple home-assistant and multiple zigbee2mqtt and multiple mqtt brokers, each with a fix IP or dhcp-assigned IP in the same cluster. Storage is nfs for now.
 
-![multi-home-assistant.csv.png](/assets/images/csv/multi-home-assistant.csv.png)
+![multi-home-assistant.csv.png](assets/images/csv/multi-home-assistant.csv.png)
 *A deployment csv file to deploy multiple home-assistant, multiple zigbee2mqtt, and multiple mqtt brokers with dhcp and static ip*
 
-![multi-home-assistant.csv.png](/assets/images/csv-edit/multi-home-assistant.csv.png)
+![multi-home-assistant.csv.png](assets/images/csv-edit/multi-home-assistant.csv.png)
 *That's how the csv file looks like openning it with janisdd.vscode-edit-csv*
 
-![multi-home-assistant.csv.png](/assets/images/result/multi-home-assistant.csv.png)
+![multi-home-assistant.csv.png](assets/images/results/multi-home-assistant.csv.png)
 *That's the result after deployment of multi-home-assistant csv file*
 
 ### 2. Homelab
 The script takes a reading from [truecharts helm charts](https://truecharts.org/charts/description-list/) and deploy them. You can set static IP or dhcp IP with fixed MAC address all within the csv file.
 
-![homelab.csv.png](/assets/images/csv/homelab.csv.png)
+![homelab.csv.png](assets/images/csv/homelab.csv.png)
 *A deployment csv file to deploy a set of homelab apps with dhcp and static ip*
 
-![homelab.csv.png](/assets/images/csv-edit/homelab.csv.png)
+![homelab.csv.png](assets/images/csv-edit/homelab.csv.png)
 *That's how the csv file looks like openning it with janisdd.vscode-edit-csv*
 
-![homelab.csv.png](/assets/images/result/homelab.csv.png)
+![homelab.csv.png](assets/images/results/homelab.csv.png)
 *That's the result after deployment of homelab csv file*
 
 ## Useful links:
@@ -118,3 +134,5 @@ The script takes a reading from [truecharts helm charts](https://truecharts.org/
 > ` `
 > `This product includes software developed at`
 > `The Apache Software Foundation (http://www.apache.org/).`
+>
+> [kubecsv github](https://github.com/alrokayan/kubecsv)
