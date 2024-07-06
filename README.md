@@ -6,11 +6,11 @@ The `kubecsv` script is a utility script runs on MacOS and Linux designed for ea
 
 ## Helpers
 This shell script is using:
-1- **kubeadm**: for kubernetes installation
-2- **Flannel** and **Multus**: for CNI (Container Network Interface) deployment
-3- **kubectl** and **helm**: for managment and deployment
-4- **Truecharts**: for helm charts apps
-5- **k9s**: for monitoring
+1. CLI **kubeadm**: for kubernetes installation
+2. CNI **Flannel** and **Multus**: for CNI (Container Network Interface) deployment
+3. CLI **kubectl** and **helm**: for managment and deployment
+4. REPO **Truecharts**: for helm charts apps
+5. CLI **k9s**: for monitoring
 > The script will download and run binaries (helm, kubectl, jq and k9s) in the bin folder where you are running the script. 
 
 ## TL;DR
@@ -106,9 +106,6 @@ With this script you can deploy multiple home-assistant and multiple zigbee2mqtt
 
 ![multi-home-assistant.csv.png](assets/images/csv-edit/multi-home-assistant.csv.png)
 *That's how the csv file looks like openning it with janisdd.vscode-edit-csv*
-
-![multi-home-assistant.csv.png](assets/images/results/multi-home-assistant.csv.png)
-*That's the result after deployment of multi-home-assistant csv file*
 
 ### 2. Homelab
 The script takes a reading from [truecharts helm charts](https://truecharts.org/charts/description-list/) and deploy them. You can set static IP or dhcp IP with fixed MAC address all within the csv file.
