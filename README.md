@@ -14,7 +14,7 @@ Additionally, the script provides options for installing binaries locally, freei
 On an empty folder on mac or linux, run:
 
 ```
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/alrokayan/kubecsv/main/kubecsv"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/alrokayan/kubecsv/main/kubecsv)"
 ```
 
 # Overview of `kubecsv`Script
