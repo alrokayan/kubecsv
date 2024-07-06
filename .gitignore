@@ -1,1 +1,8 @@
 /.DS_Store
+deploy.csv
+logs
+tmp
+bin
+.ssh
+.env.BACKUP
+.env
