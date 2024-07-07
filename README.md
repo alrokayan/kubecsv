@@ -6,18 +6,44 @@ The `kubecsv` script is a utility script runs on MacOS and Linux designed for ea
 
 ## Helpers
 This shell script is using:
-1. CLI **kubeadm**: for kubernetes installation
-2. CNI **Flannel** and **Multus**: for CNI (Container Network Interface) deployment
-3. CLI **kubectl** and **helm**: for managment and deployment
-4. REPO **Truecharts**: for helm charts apps
+1. **kubeadm** command: for kubernetes installation
+2. **Flannel** and **Multus** CNI (Container Network Interface): to deploy overlay network on Kubernetes to create static and dhcp network interfaces
+3. **kubectl** and **helm** commands: for managment and deployment of Kubernetes apps, network, storage, and other resources
+4. **Truecharts** repository: it's a helm charts repo where [all apps are defind](), their [spesefic default values](), and their [common values]()
 5. CLI **k9s**: for monitoring
-> The script will download and run binaries (helm, kubectl, jq and k9s) in the bin folder where you are running the script. 
+> The script will download and run binaries (`helm`, `kubectl`, `jq` and `k9s`) in the bin folder where you are running the script.
+> 
 
 ## TL;DR
 ```
-curl -fsSL https://raw.githubusercontent.com/alrokayan/kubecsv/main/kubecsv -o kubecsv && chmod +x kubecsv && ./kubecsv
+curl -fsSL https://raw.githubusercontent.com/alrokayan/kubecsv/main/kubecsv -o kubecsv && chmod +x kubecsv && ./kubecsv all
 ```
-Then go throug the steps 0 to 5, using an interactive interface.
+
+## How To
+### First
+Download the script
+```
+curl -fsSL https://raw.githubusercontent.com/alrokayan/kubecsv/main/kubecsv -o kubecsv
+```
+
+### Second
+Change script file permision
+```
+chmod +x kubecsv
+```
+
+### Third
+Execute the script
+```
+./kubecsv
+```
+You can send an OPTION as an input if you know what option to send (see Options section below). For example: `./kubecsv 4` generates an example csv file based on your answer to a set of questions about your infrastracture and archecture.
+
+### Fourth
+Then answer the inital questions to create the `.env` (if file doesn't exist)
+
+### Fifth
+Now you should see `kubecsv` interactive interface with menu of two main sections: Steps and Tools. From Steps section, run the steps `0` (`apt` uninstall), `1` (`apt` install), `2` (`kubeadm` init/join), `3` (`flannel` and `multus`), `4` (create `deploy.csv`), and `5` (deploy `deploy.csv`). Or `all` to run all steps in sequance (WARNING: error handling is not implimented)
 
 ## INPUT
 ![homelab.csv.png](assets/images/csv/homelab.csv.png)
@@ -28,7 +54,7 @@ Then go throug the steps 0 to 5, using an interactive interface.
 *That's the result after the deployment of above homelab csv file*
 
 ## Edit
-The best way to edit csv is via a CSV Edit extention in Studio Code, using MS Excel, Using Google Sheets (import as csv/export as csv), or just a csv coloroing extention in Studio Code.
+The best way to edit csv is via a CSV Edit extention in Studio Code, or alterativlly: MS Excel, Google Sheets (import as csv, export as csv), or just a csv coloroing extention in Studio Code.
 
 ![homelab.csv.png](assets/images/csv-edit/homelab.csv.png)
 *That's how the csv file looks like openning it with janisdd.vscode-edit-csv*
@@ -60,22 +86,27 @@ The file must be named `deploy.csv` and put in the same directory where you are 
 `kubecsv` supports almost all of the 700+ TrueCharts charts. You can view them here: https://truecharts.org/charts/description-list/
 
 ## Options:
-- `./kubecsv` will an interactive script with a set of tools, where you can choose to deploy and step and or run any of the tools
+- `./kubecsv` will an interactive script with a set of tools, where you can choose to deploy and step and or run any of the tools (interactive)
 - `./kubecsv 0` will run step 0 (uninstalling), see details below (non-interactive)
 - `./kubecsv 1` will run step 1 (installing), see details below (non-interactive)
-- `./kubecsv 2` will run step 2 (create the cluster), see details below(non-interactive)
-- `./kubecsv 3` will run step 3 (deploy k8s network), see details below(non-interactive)
-- `./kubecsv 4` will run step 4 (generate an example deploy.csv), see details below(non-interactive)
-- `./kubecsv 5` will run step 5 (deploy deploy.csv), see details below(non-interactive)
-- `./kubecsv all` will run the steps 0 to 5, one by one(non-interactive)
+- `./kubecsv 2` will run step 2 (create the cluster), see details below (non-interactive)
+- `./kubecsv 3` will run step 3 (deploy k8s network), see details below (non-interactive)
+- `./kubecsv 4` will run step 4 (generate an example deploy.csv), see details below (non-interactive)
+- `./kubecsv 5` will run step 5 (deploy deploy.csv), see details below (non-interactive)
+- `./kubecsv all` will run the steps 0 to 5, one by one (WARNING: error handling is not implimented) (non-interactive)
 - `./kubecsv un3` Will undoes the actions performed in steps 3 and 5, effectively removing all applications and the Kubernetes network configuration (non-interactive)
 - `./kubecsv un5` Will specifically targets the undoing of step 5, removing all applications deployed from the `deploy.csv` without affecting the network configuration (non-interactive)
-- `./kubecsv k` Will run k9s monitoring tool using the configured kubeconfig 
+- `./kubecsv k` Will run k9s monitoring tool using the configured kubeconfig (interactive)
+
+## .env
+On the first run of the `kubecsv`, the `.env` file (if doesn't exist), will he created by answering a set of questions regarding the cluster nodes, their ssh access, and Kubernetes network CIDR. The script will be updated on step `1` to add the the Kubernetes version. Also on step `4` to save the inputed values to create the `deploy.csv` file. Also on running network dignostic tool pod to save the network configurations
 
 ## Logs
-Every time you run the script, a `logs` folder will be created contains your current and past logs
+Every time you run the script, a `logs` folder will be created contains (if needed) your current and past logs
 
-## The Five Steps 
+## kubecsv Steps
+The scrpt is devided into six distinguished steps as following:
+
 ### Step 0: Uninstall Everything
 - This step involves cleaning up or uninstalling all components related to the Kubernetes cluster that were previously installed or configured by this script. It might include removing installed packages, deleting configuration files, and cleaning up any temporary files created during the process.
 
@@ -88,14 +119,28 @@ Every time you run the script, a `logs` folder will be created contains your cur
 ### Step 3: Deploy Kubernetes Network
 - Deploys networking solutions within the Kubernetes cluster, specifically mentioning `flannel` and `multus`. Flannel is a simple and easy-to-configure layer 3 network fabric designed for Kubernetes, while Multus is a CNI plugin that enables attaching multiple network interfaces to pods.
 
-### Step 4: Generate `deploy.csv` (Example Content)
+### Step 4: Generate `deploy.csv`
 - Generates a CSV file named `deploy.csv`, which contains configuration or deployment specifications for applications or services to be deployed within the cluster. You can see it as a template or sample file for users to customize.
 
 ### Step 5: Deploy `deploy.csv`
 - Takes the previously generated (or provided) `deploy.csv` file and deploys its contents to the Kubernetes cluster. This step involve parsing the CSV file and applying the configurations it contains, such as deploying applications, storage and network.
 
+You can run those steps from one of four ways:
+1. `./kubecsv` then go throw the steps from `0` to `5` by selecting the step number from `kubecsv` CLI main menu
+2. `./kubecsv` then selecting `all` from `kubecsv` CLI main menu, this option will go throw the steps from `0` to `5` by automaticlly
+3. `./kubecsv 0` or `./kubecsv 1` or `./kubecsv 2` or `./kubecsv 3` or `./kubecsv 4` or `./kubecsv 5` where the script will skip `kubecsv` CLI interactive main menu to execute the inputed step number
+4. `./kubecsv all` this option will go throw the steps from `0` to `5` by automaticlly skipping `kubecsv` CLI interactive main menu
+
+## kubecsv Tools
+In addition to the above six steps and the option to run `all` of them at once; you have the tollowing tools at your disposal:
+- network tools pod for network and dns dignoatic
+- k9s CLI to monitor the cluster
+- dns fix to update the cluster's configurtion with the current DNS pods' IP address(es)
+- install `kubectl`, `helm`, `k9s`, and `jq` binaries (MacOS or Linux) into a bin folder where `kubecsv` script is running
+- rebooting all nodes
+
 ## Requirements
-Mac or Linux as a local machine (the machine that will run the script). Regarding the hosts (nodes) the script has been tested on Ubuntu 22.04 VM and bare-metal. The script works for one node or multiple.
+Mac or Linux as a local machine (the machine that will run the script). Regarding the hosts (nodes) `kubecsv` script has been tested on Ubuntu 22.04 VM and bare-metal. The script works for one node or multiple. Please check `kubeadm` minmume requirments.
 
 ## Example
 ### 1. Multiple Home Assistant
@@ -126,10 +171,8 @@ The script takes a reading from [truecharts helm charts](https://truecharts.org/
 4. Recommended stuido code extension to edit CSV (janisdd.vscode-edit-csv): https://marketplace.visualstudio.com/items?itemName=janisdd.vscode-edit-csv
 
 ---
-> `Apache kubecsv`
-> `Copyright 2024 The Apache Software Foundation`
-> ` `
-> `This product includes software developed at`
-> `The Apache Software Foundation (http://www.apache.org/).`
->
-> [kubecsv github](https://github.com/alrokayan/kubecsv)
+> [Apache kubecsv](https://github.com/alrokayan/kubecsv)
+> Copyright 2024 The Apache Software Foundation
+> 
+> This product includes software developed at
+> The Apache Software Foundation (http://www.apache.org/).
