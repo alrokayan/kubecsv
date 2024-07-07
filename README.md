@@ -6,13 +6,13 @@ The `kubecsv` script is a utility script runs on MacOS and Linux designed for ea
 
 ## Helpers
 This shell script is using:
-1. **kubeadm** command: for kubernetes installation
-2. **Flannel** and **Multus** CNI (Container Network Interface): to deploy overlay network on Kubernetes to create static and dhcp network interfaces
-3. **kubectl** and **helm** commands: for managment and deployment of Kubernetes apps, network, storage, and other resources
-4. **Truecharts** repository: it's a helm charts repo where [all apps are defind](), their [spesefic default values](), and their [common values]()
-5. CLI **k9s**: for monitoring
+1. `**kubeadm**` command: for kubernetes installation
+2. `**CNI**` (Container Network Interface): to deploy CNI plugins including `flannel`, `multis`, and `dhcp` CNIs binaries, deamons, overlay networks, and other k8s resources to create cluster's, static and dhcp network interfaces
+4. `**kubectl**` and `**helm**` commands: for the managment and deployment of Kubernetes apps, network, storage, and other resources
+5. `**Truecharts**` repository: TrueCharts is a helm charts repo where [all apps are defind](https://truecharts.org/charts/description-list/), their [spesefic default values](https://github.com/truecharts/charts/tree/master/charts), and their [common values](https://github.com/truecharts/library-charts/blob/main/library/common/values.yaml)
+6. `**k9s**` CLI: a handy tool for monitoring the cluster's resources
+
 > The script will download and run binaries (`helm`, `kubectl`, `jq` and `k9s`) in the bin folder where you are running the script.
-> 
 
 ## TL;DR
 ```
@@ -125,7 +125,7 @@ The scrpt is devided into six distinguished steps as following:
 ### Step 5: Deploy `deploy.csv`
 - Takes the previously generated (or provided) `deploy.csv` file and deploys its contents to the Kubernetes cluster. This step involve parsing the CSV file and applying the configurations it contains, such as deploying applications, storage and network.
 
-You can run those steps from one of four ways:
+You can run those steps from using one of four ways:
 1. `./kubecsv` then go throw the steps from `0` to `5` by selecting the step number from `kubecsv` CLI main menu
 2. `./kubecsv` then selecting `all` from `kubecsv` CLI main menu, this option will go throw the steps from `0` to `5` by automaticlly
 3. `./kubecsv 0` or `./kubecsv 1` or `./kubecsv 2` or `./kubecsv 3` or `./kubecsv 4` or `./kubecsv 5` where the script will skip `kubecsv` CLI interactive main menu to execute the inputed step number
@@ -168,7 +168,11 @@ The script takes a reading from [truecharts helm charts](https://truecharts.org/
 1. Charts List: https://truecharts.org/charts/description-list/
 2. Charts values: https://github.com/truecharts/charts/tree/master/charts
 3. Common values: https://github.com/truecharts/library-charts/blob/main/library/common/values.yaml
-4. Recommended stuido code extension to edit CSV (janisdd.vscode-edit-csv): https://marketplace.visualstudio.com/items?itemName=janisdd.vscode-edit-csv
+
+## TL;DR
+```
+curl -fsSL https://raw.githubusercontent.com/alrokayan/kubecsv/main/kubecsv -o kubecsv && chmod +x kubecsv && ./kubecsv all
+```
 
 ---
 > [Apache kubecsv](https://github.com/alrokayan/kubecsv)
