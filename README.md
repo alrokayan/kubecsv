@@ -20,6 +20,13 @@
 
 ### 1) Download the script
 ```
+git clone https://github.com/alrokayan/kubecsv.git
+cd kubecsv
+```
+or
+```
+mkdir kubecsv
+cd kubecsv
 curl -fsSL https://raw.githubusercontent.com/alrokayan/kubecsv/main/kubecsv -o kubecsv
 ```
 ### 2) Change script file permission
