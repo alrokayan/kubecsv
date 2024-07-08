@@ -1,6 +1,6 @@
 # kubecsv
 
-The `kubecsv` script is a utility script runs on MacOS and Linux designed for easy installation of Kubernetes cluster and deploying apps from a single comma-separated values (csv) file, deploy.csv, (check the `examples` folder) on set of Ubuntu 22.04 host(s). It has beeen tested 7-node xcp-ng VMs with multiple VLAN-based network interces and a single bare-metal with two network interfaces (one goes direct p2p to a nas)
+The `kubecsv` script is a utility script runs on MacOS and Linux designed for easy installation of Kubernetes cluster and deploying apps from a single comma-separated values (csv) file, deploy.csv, (check the `examples` folder) on set of Ubuntu 22.04 host(s). It has beeen tested 7-node xcp-ng VMs with multiple VLAN-based network interces and a single bare-metal with two network interfaces (one interface goes direct to a nas)
 
 ## ABSTRACT
 ### INPUT1: `kubecsv`
