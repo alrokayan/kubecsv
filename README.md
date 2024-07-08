@@ -1,6 +1,6 @@
 # kubecsv
 
-The `kubecsv` script is a utility script runs on MacOS and Linux designed for easy installation of Kubernetes cluster and deploying apps from a simple csv file, deploy.csv (check examples) on set of Ubuntu 22.04 host(s). It has beeen tested on xcp-ng VMs and bare-metal.
+The `kubecsv` script is a utility script runs on MacOS and Linux designed for easy installation of Kubernetes cluster and deploying apps from a single comma-separated values (csv) file, deploy.csv, (check the `examples` folder) on set of Ubuntu 22.04 host(s). It has beeen tested 7-node xcp-ng VMs with multiple VLAN-based network interces and a single bare-metal with two network interfaces (one goes direct p2p to a nas)
 
 ## ABSTRACT
 ### INPUT1: `kubecsv`
@@ -23,7 +23,7 @@ This shell script is using:
 2. **CNI**: Cluster's network is mainly based on CNI (Container Network Interface) plugins (`flannel`, `multis`, and `dhcp`), where the script downloads CNI plugins' binaries, run deamons, create overlay networks, and deploy other k8s resources for the purpose of creating cluster's, static and dhcp network interfaces
 4. **kubectl** and **helm**: We are heavily using `kubectl` and `helm` commands for the managment and deployment of Kubernetes apps, network, storage, and other resources
 5. **TrueCharts**: The source of most deployments (network and apps) are TrueCharts helm charts repository, where [all apps are defind](https://truecharts.org/charts/description-list/), their [spesefic default values](https://github.com/truecharts/charts/tree/master/charts), and their [common values](https://github.com/truecharts/library-charts/blob/main/library/common/values.yaml)
-6. **k9s** CLI: `k9s` is a handy tool for monitoring the cluster's resources
+6. **k9s**: `k9s` is a CLI tool for monitoring the cluster's resources
 
 > The script will download and run binaries (`helm`, `kubectl`, `jq` and `k9s`) in the bin folder where you are running the script.
 
@@ -165,9 +165,9 @@ The script takes a reading from [truecharts helm charts](https://truecharts.org/
 *That's the result after deployment of homelab csv file*
 
 ## Useful links:
-1. **TrueChartsApps List**: https://truecharts.org/charts/description-list/
+1. **TrueCharts Apps List**: https://truecharts.org/charts/description-list/
 2. **TrueCharts Apps Values**: https://github.com/truecharts/charts/tree/master/charts
-3. **TrueCharts All Apps Common Values**: https://github.com/truecharts/library-charts/blob/main/library/common/values.yaml
+3. **TrueCharts Apps Common Values**: https://github.com/truecharts/library-charts/blob/main/library/common/values.yaml
 
 ## Full Installation
 ![screen.gif](assets/gifs/screen.gif)
