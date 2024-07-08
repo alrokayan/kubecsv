@@ -1082,8 +1082,8 @@ function step3() {
     ## Allow master node to schedule pods
     if [ ${#NODE_ARRAY[@]} -eq 1 ] || [ "$INC_MASTER" == "y" ]; then
       echo "-- Allowing master node to schedule app ..." >&3
-      MASTER_HOSTNAME=&(cat tmp/hosts | grep ${#NODE_ARRAY[0]} | awk '{print $2}')
-      kubectl taint nodes $MASTER_HOSTNAME node-role.kubernetes.io/control-plane:NoSchedule-
+      MASTER_HOSTNAME=$(ssh -i "$MY_PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[0]}" hostname)
+      kubectl taint nodes "$MASTER_HOSTNAME" node-role.kubernetes.io/control-plane:NoSchedule-
     fi
 
     ## Create namespaces
@@ -1334,8 +1334,8 @@ spec:
           "mode": "bridge",
           "mac": "$MAC",
           "master": "$nw_master_nic",
-          "isDefaultGateway": false,
-          "enableIPv6": true,
+          "isDefaultGateway": true,
+          "enableIPv6": false,
           "ipam": {
             "type": "dhcp"
           }
