@@ -23,7 +23,7 @@ trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 trap "echo 'ERROR: An error occurred during execution, check log $LOG_FILE for details.' >&3"
 touch .env
 if ! cat .env | grep "export PATH="; then
-  echo "export PATH=\"\$(pwd)/bin:$PATH\"" >> .env
+  echo "export PATH=\"\$(pwd)/bin:\$PATH\"" >> .env
 fi
 if ! cat .env | grep "export SSH_EXTRA_ARGS="; then
   echo 'export SSH_EXTRA_ARGS="-o StrictHostKeyChecking=no"' >> .env
@@ -36,12 +36,12 @@ if [ -f "$KUBECONFIG" ]; then
 fi
 ## GENERAL DEFAULT VALUES
 export NODE_ARRAY_DEFAULT="(10.99.0.100 10.99.0.101 10.99.0.102 10.99.0.103)"
-KUBECONFIG_DEFAULT="\$(pwd)/kubeconfig"
+KUBECONFIG_DEFAULT="$(pwd)/kubeconfig"
 export KUBECONFIG_DEFAULT
 export CLUSTER_CIDR_DEFAULT="10.244"
 export TZ_DEFAULT="Etc/GMT"
 export SSH_USERNAME_DEFAULT="root"
-PRIVATE_KEY_DEFAULT="\$(pwd)/.ssh/id_rsa"
+PRIVATE_KEY_DEFAULT="$(pwd)/.ssh/id_rsa"
 export PRIVATE_KEY_DEFAULT
 ## DEFAULT VALUES FOR STEP 4 (GENERATE EXAMPLE CSV FILE)
 export CSV_MASTERNIC_DEFAULT="eth0"
@@ -252,11 +252,11 @@ function RESTART_ALL_NODES() {
   . .env
   for ((i = 1; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
     echo "-- Rebooting ${NODE_ARRAY[$i]}"
-    (ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" "reboot") &
+    (ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" "reboot") &
   done
   wait $!
   echo "-- Rebooting ${NODE_ARRAY[0]}"
-  ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}" "reboot"
+  ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}" "reboot"
   sleep 5
   WAIT_ALL_NODES_ONLINE
 }
@@ -270,7 +270,7 @@ function copyKubeconfig() {
   if ! [ -f $KUBECONFIG ]; then
     echo "-- Creating $KUBECONFIG" >&3
     i=0
-    ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
+    ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
 #!/bin/bash
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 rm -f ~/.kube/config
@@ -281,7 +281,7 @@ chmod go-r ~/.kube/config
 ____EOF____
     rm -f "$KUBECONFIG".BACKUP
     mv "$KUBECONFIG" "$KUBECONFIG".BACKUP
-    scp -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}":~/.kube/config "$KUBECONFIG"
+    scp -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}":~/.kube/config "$KUBECONFIG"
     chown "$(id -un)":"$(id -Gn)" "$KUBECONFIG"
     chmod g+r "$KUBECONFIG"
     chmod go-r "$KUBECONFIG"
@@ -298,7 +298,7 @@ function SWAPRemoval() {
   echo "-- Removing SWAP and rebooting if needed on all nodes" >&3
   for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
     (
-      ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
+      ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
 #!/bin/bash
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 if free | awk '/^Swap:/ {exit !$2}'; then
@@ -535,7 +535,7 @@ function FixDNS() {
   echo "-- CoreDNS IP2: $COREDNS_IP2" >&3
   for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
     (
-      ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}" DEBIAN_FRONTEND="noninteractive" i="$i" COREDNS_IP1="$COREDNS_IP1" COREDNS_IP2="$COREDNS_IP2" "bash -s" <<'____EOF____'
+      ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}" DEBIAN_FRONTEND="noninteractive" i="$i" COREDNS_IP1="$COREDNS_IP1" COREDNS_IP2="$COREDNS_IP2" "bash -s" <<'____EOF____'
 #!/bin/bash
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 if [ "$COREDNS_IP1" != "<no value>" ]; then
@@ -602,7 +602,7 @@ function unD() {
     echo "-- Deleting leftover NICs, and cni files on all nodes" >&3
     for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
       (
-      ssh -i "$MY_PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[i]}" i=$i bash <<'____EOF____'
+      ssh -i "$PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[i]}" i=$i bash <<'____EOF____'
 #!/bin/bash
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 
@@ -640,30 +640,34 @@ ____EOF____
 #######################################
 #######################################
 function sshCopyID() {
-  if [ "$MY_PRIVATE_KEY" == "" ]; then return 1; fi
+  if [ "$PRIVATE_KEY" == "" ]; then echo "-- ERROR: PRIVATE_KEY is empty " >&3 ; return 1; fi
 
-  if [ ! -f $MY_PRIVATE_KEY ]; then
-    echo "-- $MY_PRIVATE_KEY no found. Generating new keys" >&3
-    mkdir -p "$(dirname $MY_PRIVATE_KEY)"
-    ssh-keygen -t rsa -b 4096 -C "k8s" -f "$MY_PRIVATE_KEY" -N ""
+  if [ ! -f $PRIVATE_KEY ]; then
+    echo "-- $PRIVATE_KEY no found. Generating new keys" >&3
+    mkdir -p "$(dirname $PRIVATE_KEY)"
+    ssh-keygen -t rsa -b 4096 -C "k8s" -f "$PRIVATE_KEY" -N ""
   else
-    echo "-- Using $MY_PRIVATE_KEY" >&3
+    echo "-- Using $PRIVATE_KEY" >&3
   fi
-  chmod 700 "$(dirname $MY_PRIVATE_KEY)"
-  chmod 600 "$MY_PRIVATE_KEY"
-  chmod 644 "$MY_PRIVATE_KEY.pub"
+  chmod 700 "$(dirname $PRIVATE_KEY)"
+  chmod 600 "$PRIVATE_KEY"
+  chmod 644 "$PRIVATE_KEY.pub"
   echo "PUBLIC KEY: "
-  cat "$MY_PRIVATE_KEY.pub"
+  cat "$PRIVATE_KEY.pub"
 
   WAIT_ALL_NODES_ONLINE
   for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
     IP=${NODE_ARRAY[$i]}
     echo "-- copying public key to $IP " >&3
-    ssh-copy-id -o LogLevel=QUIET -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" 1>&3
+    ssh-copy-id -o LogLevel=QUIET -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" 1>&3
     if [[ $? -eq 0 ]]; then
       echo "-- ssh-copy-id for $IP is successful"
     else
-      echo "-- ssh-copy-id failed for $IP"
+      echo -n "-- ERROR: ssh-copy-id failed for $IP with the following public key in $(dirname $PRIVATE_KEY): "
+      cat "$PRIVATE_KEY.pub"
+      echo
+      # sed -i.BACKUP "/^export PRIVATE_KEY=/d" .env
+      unset PRIVATE_KEY
       return 1
     fi
   done
@@ -741,7 +745,7 @@ function step0() {
   echo "-- Uninstalling (inc. reset kubeadm, firewall, files, NICs) on all nodes" >&3
   for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
     (
-      ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
+      ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
 #!/bin/bash
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 
@@ -826,7 +830,7 @@ function step1() {
   echo "127.0.0.1 localhost" >tmp/hosts
   for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
     IP=${NODE_ARRAY[$i]}
-    NODEHOSTNAME=$(ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" "hostname")
+    NODEHOSTNAME=$(ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" "hostname")
     echo "$IP $NODEHOSTNAME" >>tmp/hosts
   done
   echo '
@@ -838,8 +842,8 @@ ff02::2 ip6-allrouters' >>tmp/hosts
   for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
     (
       IP=${NODE_ARRAY[$i]}
-      ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" "mv /etc/hosts /etc/hosts.BACKUP"
-      scp -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS tmp/hosts "$SSH_USERNAME"@"$IP":/etc/
+      ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" "mv /etc/hosts /etc/hosts.BACKUP"
+      scp -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS tmp/hosts "$SSH_USERNAME"@"$IP":/etc/
     ) &
   done
   wait $!
@@ -848,7 +852,7 @@ ff02::2 ip6-allrouters' >>tmp/hosts
     (
       echo "-- Updating, upgrading and installing pre-requisites on all nodes, please wait ..." >&3
       IP=${NODE_ARRAY[$i]}
-      ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
+      ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
 #!/bin/bash
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 echo "-- $HOSTNAME :Creating folders and setting permissions"
@@ -957,7 +961,7 @@ ____EOF____
   wait $!
 
   if [ "$K8S_VERSION" == "" ]; then
-    scp -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}":/tmp/K8S_VERSION tmp/K8S_VERSION
+    scp -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}":/tmp/K8S_VERSION tmp/K8S_VERSION
     DEFAULT_VERSION="$(cat tmp/K8S_VERSION)"
     readVar K8S_VERSION "$DEFAULT_VERSION" "Please entre k8s version" 1 30
   fi
@@ -965,7 +969,7 @@ ____EOF____
   echo "-- Installing kubernetes (version: $K8S_VERSION) on all nodes" >&3
   for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
     (
-      ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" K8S_VERSION="$K8S_VERSION" "bash -s" <<'____EOF____'
+      ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" K8S_VERSION="$K8S_VERSION" "bash -s" <<'____EOF____'
 #!/bin/bash
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 echo "-- $HOSTNAME :Installing kubernetes (version: $K8S_VERSION)"
@@ -990,7 +994,7 @@ ____EOF____
 function step2() {
   echo "-- Initializing kubernetes version: $(echo "$K8S_VERSION" | sed 's/-[0-9].*//')" >&3
   i=0
-  ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" CLUSTER_CIDR_FIRST_TWO_OCTETS="$CLUSTER_CIDR_FIRST_TWO_OCTETS" MASTER_IP="${NODE_ARRAY[0]}" K8S_VERSION="$K8S_VERSION" SSH_USERNAME="$SSH_USERNAME" "bash -s" <<'____EOF____'
+  ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" CLUSTER_CIDR_FIRST_TWO_OCTETS="$CLUSTER_CIDR_FIRST_TWO_OCTETS" MASTER_IP="${NODE_ARRAY[0]}" K8S_VERSION="$K8S_VERSION" SSH_USERNAME="$SSH_USERNAME" "bash -s" <<'____EOF____'
 #!/bin/bash
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 echo "-- $HOSTNAME :Initializing k8s master version: $(echo "$K8S_VERSION" | sed 's/-[0-9].*//')"
@@ -1035,20 +1039,20 @@ ____EOF____
   copyKubeconfig
   echo "-- Copying kubeconfig to all nodes" >&3
   for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
-    (scp -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$KUBECONFIG" "$SSH_USERNAME"@"${NODE_ARRAY[$i]}":~/.kube/config) &
+    (scp -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$KUBECONFIG" "$SSH_USERNAME"@"${NODE_ARRAY[$i]}":~/.kube/config) &
   done
   wait $!
 
   echo "-- Copying join command file to this machine" >&3
   rm -f tmp/join.sh
-  scp -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}":~/.kube/join.sh tmp/
+  scp -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}":~/.kube/join.sh tmp/
   chmod +x tmp/join.sh
   for ((i = 1; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
     (
       IP=${NODE_ARRAY[$i]}
       echo "-- $IP joining the cluster" >&3
-      scp -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS tmp/join.sh "$SSH_USERNAME"@"$IP":~/.kube/join.sh
-      ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
+      scp -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS tmp/join.sh "$SSH_USERNAME"@"$IP":~/.kube/join.sh
+      ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
 #!/bin/bash
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 chmod +x $HOME/.kube/join.sh
@@ -1076,7 +1080,7 @@ function step3() {
     ## Allow master node to schedule pods
     if [ ${#NODE_ARRAY[@]} -eq 1 ] || [ "$INC_MASTER" == "y" ]; then
       echo "-- Allowing master node to schedule app ..." >&3
-      MASTER_HOSTNAME=$(ssh -i "$MY_PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[0]}" hostname)
+      MASTER_HOSTNAME=$(ssh -i "$PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[0]}" hostname)
       kubectl taint nodes "$MASTER_HOSTNAME" node-role.kubernetes.io/control-plane:NoSchedule-
     fi
 
@@ -1088,7 +1092,7 @@ function step3() {
     echo "-- Creating subnet.env and downloading cni binaries on all nodes" >&3
     for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
       (
-      ssh -i "$MY_PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[i]}" i=$i CLUSTER_CIDR_FIRST_TWO_OCTETS=$CLUSTER_CIDR_FIRST_TWO_OCTETS bash <<'____EOF____'
+      ssh -i "$PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[i]}" i=$i CLUSTER_CIDR_FIRST_TWO_OCTETS=$CLUSTER_CIDR_FIRST_TWO_OCTETS bash <<'____EOF____'
 #!/bin/bash
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 
@@ -1119,7 +1123,7 @@ ____EOF____
     for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
       (
         echo "-- Fixing flannel/cni NIC on all nodes" >&3
-        ssh -i "$MY_PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
+        ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
 #!/bin/bash
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Is)]  "; set -x' DEBUG
 for nic in $(ip link show | grep -e cni -e flannel | awk -F@ '{print $1}' | awk '{print $2}'); do
@@ -1447,12 +1451,16 @@ while ! IS_ALL_NODES_ONLINE; do
   . .env
   readArrayVar NODE_ARRAY "Please entre kubernetes cluster's nodes IP addresses the first one is the master (seperate IPs with SPACE)" "$(IFS=' ' ; echo "$NODE_ARRAY_DEFAULT" )"
 done
-while ! sshCopyID; do
-  . .env
-  readVar MY_PRIVATE_KEY "$PRIVATE_KEY_DEFAULT" "Please enter the absolute path for your private key. It will be created if does not exist. The default value is recommended"
-  readVar SSH_USERNAME "$SSH_USERNAME_DEFAULT" "Please entre the SSH username"
+readVar SSH_USERNAME "$SSH_USERNAME_DEFAULT" "Please entre the SSH username" 1
+while [ ! -f "$PRIVATE_KEY" ]; do
+  PRIVATE_KEY="$PRIVATE_KEY_DEFAULT"
+  readVar PRIVATE_KEY "$PRIVATE_KEY_DEFAULT" "Please enter the absolute path for your private key. It will be created if does not exist. The default value is recommended"
 done
-readVar KUBECONFIG "$KUBECONFIG_DEFAULT" "Please entre the path for KUBECONFIG" 1
+sshCopyID
+if [ ! -f "$KUBECONFIG" ]; then
+  KUBECONFIG="$KUBECONFIG_DEFAULT"
+  readVar KUBECONFIG "$KUBECONFIG_DEFAULT" "Please entre the path for KUBECONFIG"
+fi
 readVar CLUSTER_CIDR_FIRST_TWO_OCTETS "$CLUSTER_CIDR_DEFAULT" "Please entre the first two octets of the subnet 16 of the cluster CIDR (10.244 means 10.244.0.0/16)" 1
 readVar KUBE_TZ "$TZ_DEFAULT" "Please entre your Time Zone" 1
 readVar INC_MASTER "y" "Do you want to allow master node to schedule apps (entre y or n)" 1
@@ -1469,7 +1477,7 @@ while $CONTINUE; do
     echo "Welcome to KUBECSV .." >&3
     echo "LOG FILE: $LOG_FILE" >&3
     echo "KUBECONFIG: $KUBECONFIG" >&3
-    echo "SSH KEYS: $MY_PRIVATE_KEY"  >&3
+    echo "SSH KEYS: $PRIVATE_KEY"  >&3
     echo "kubectl bin: $(which kubectl)"  >&3
     echo "-----------------------------------------------------------" >&3
     echo "(q)    < Quit (and remove tmp and logs folders)" >&3
