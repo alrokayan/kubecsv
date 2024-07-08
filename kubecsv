@@ -1419,7 +1419,7 @@ while $CONTINUE; do
     echo "-----------------------------------------------------------" >&3
     echo "(q)    < Quit (and remove tmp and logs folders)" >&3
     echo "-----------------------------------------------------------" >&3
-    echo "------------------------- INSTALL -------------------------" >&3
+    echo "------------------- INSTALLATION STEPS --------------------" >&3
     echo "-----------------------------------------------------------" >&3
     echo "[0].....Uninstall Everything" >&3
     echo "[1].....Prepare hosts and install pre-requisitess (apt install)" >&3
@@ -1435,9 +1435,9 @@ while $CONTINUE; do
     echo "(b).....(b)inaries installation locally (helm, kubectl, jq and k9s)" >&3
     echo "(k).....(k)9s - monitor K8s cluster status" >&3
     echo "(c).....(c)opy kubeconfig file from the master node" >&3
-    echo "(n).....(n)etwork dignostic tool (nstools pod deployment)" >&3
+    echo "(n).....(n)etwork diagnostic tool (nstools pod deployment)" >&3
     echo "(d).....(d)ns fix" >&3
-    echo "(s).....(s)wap partation removal" >&3
+    echo "(s).....(s)wap partition removal" >&3
     echo "(R).....[R]EBOOT ALL NODES" >&3
     echo "(all)...(all) installation steps at once" >&3
     echo "-----------------------------------------------------------" >&3
