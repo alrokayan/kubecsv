@@ -6,18 +6,13 @@ The `kubecsv` script is a utility script runs on MacOS and Linux designed for ea
 
 ## Helpers
 This shell script is using:
-1. `**kubeadm**` command: for kubernetes installation
-2. `**CNI**` (Container Network Interface): to deploy CNI plugins including `flannel`, `multis`, and `dhcp` CNIs binaries, deamons, overlay networks, and other k8s resources to create cluster's, static and dhcp network interfaces
-4. `**kubectl**` and `**helm**` commands: for the managment and deployment of Kubernetes apps, network, storage, and other resources
-5. `**Truecharts**` repository: TrueCharts is a helm charts repo where [all apps are defind](https://truecharts.org/charts/description-list/), their [spesefic default values](https://github.com/truecharts/charts/tree/master/charts), and their [common values](https://github.com/truecharts/library-charts/blob/main/library/common/values.yaml)
-6. `**k9s**` CLI: a handy tool for monitoring the cluster's resources
+1. **kubeadm** command: for kubernetes installation
+2. **CNI**: Cluster's network is mainly based on CNI (Container Network Interface) plugins (`flannel`, `multis`, and `dhcp`), where the script downloads CNI plugins' binaries, run deamons, create overlay networks, and deploy other k8s resources for the purpose of creating cluster's, static and dhcp network interfaces
+4. **kubectl** and **helm**: We are heavily using `kubectl` and `helm` commands for the managment and deployment of Kubernetes apps, network, storage, and other resources
+5. **TrueCharts**: The source of most deployments (network and apps) are TrueCharts helm charts repository, where [all apps are defind](https://truecharts.org/charts/description-list/), their [spesefic default values](https://github.com/truecharts/charts/tree/master/charts), and their [common values](https://github.com/truecharts/library-charts/blob/main/library/common/values.yaml)
+6. **k9s** CLI: `k9s` is a handy tool for monitoring the cluster's resources
 
 > The script will download and run binaries (`helm`, `kubectl`, `jq` and `k9s`) in the bin folder where you are running the script.
-
-## TL;DR
-```
-curl -fsSL https://raw.githubusercontent.com/alrokayan/kubecsv/main/kubecsv -o kubecsv && chmod +x kubecsv && ./kubecsv all
-```
 
 ## How To
 ### First
@@ -37,7 +32,8 @@ Execute the script
 ```
 ./kubecsv
 ```
-You can send an OPTION as an input if you know what option to send (see Options section below). For example: `./kubecsv 4` generates an example csv file based on your answer to a set of questions about your infrastracture and archecture.
+
+> You can send an OPTION as an input if you know what option to send (see Options section below). For example: `./kubecsv 4` generates an example csv file based on your answer to a set of questions about your infrastracture and archecture.
 
 ### Fourth
 Then answer the inital questions to create the `.env` (if file doesn't exist)
@@ -85,7 +81,7 @@ The file must be named `deploy.csv` and put in the same directory where you are 
 ## TrueChart Charts
 `kubecsv` supports almost all of the 700+ TrueCharts charts. You can view them here: https://truecharts.org/charts/description-list/
 
-## Options:
+## OPTIONS:
 - `./kubecsv` will an interactive script with a set of tools, where you can choose to deploy and step and or run any of the tools (interactive)
 - `./kubecsv 0` will run step 0 (uninstalling), see details below (non-interactive)
 - `./kubecsv 1` will run step 1 (installing), see details below (non-interactive)
@@ -99,34 +95,36 @@ The file must be named `deploy.csv` and put in the same directory where you are 
 - `./kubecsv k` Will run k9s monitoring tool using the configured kubeconfig (interactive)
 
 ## .env
-On the first run of the `kubecsv`, the `.env` file (if doesn't exist), will he created by answering a set of questions regarding the cluster nodes, their ssh access, and Kubernetes network CIDR. The script will be updated on step `1` to add the the Kubernetes version. Also on step `4` to save the inputed values to create the `deploy.csv` file. Also on running network dignostic tool pod to save the network configurations
+On the first run of the `kubecsv`, the `.env` file (if doesn't exist), will he created by answering a set of questions regarding the cluster nodes, their ssh access, and Kubernetes network CIDR. The script will update `.env` during the execution of step `1` to add the the Kubernetes version enviroment varibales. Also on step `4` to save the template values for the example `deploy.csv` file.
+
+Also the `.env` file will be updated once more on running network dignostic tool pod; to save the pod's network configurations for future quick-run
 
 ## Logs
-Every time you run the script, a `logs` folder will be created contains (if needed) your current and past logs
+Every time you run the script, a `logs` folder will be created (if it doesn't exist) with your current and past logs
 
 ## kubecsv Steps
 The scrpt is devided into six distinguished steps as following:
 
 ### Step 0: Uninstall Everything
-- This step involves cleaning up or uninstalling all components related to the Kubernetes cluster that were previously installed or configured by this script. It might include removing installed packages, deleting configuration files, and cleaning up any temporary files created during the process.
+> This step involves cleaning up or uninstalling all components related to the Kubernetes cluster that were previously installed or configured by this script. It might include removing installed packages, deleting configuration files, and cleaning up any temporary files created during the process.
 
 ### Step 1: Prepare Hosts and Install Pre-requisites
-- Executes necessary commands to prepare the host machines for Kubernetes installation. This includes updating package lists, installing required packages via `apt`, and possibly setting up necessary system configurations.
+> Executes necessary commands to prepare the host machines for Kubernetes installation. This includes updating package lists, installing required packages via `apt`, and possibly setting up necessary system configurations.
 
 ### Step 2: Create Kubernetes Cluster
-- Initializes a Kubernetes cluster using `kubeadm init`. This step sets up the control plane and prepares the cluster for adding worker nodes. and execute `kubeadm join` command on the workers nodes.
+> Initializes a Kubernetes cluster using `kubeadm init`. This step sets up the control plane and prepares the cluster for adding worker nodes. and execute `kubeadm join` command on the workers nodes.
 
 ### Step 3: Deploy Kubernetes Network
-- Deploys networking solutions within the Kubernetes cluster, specifically mentioning `flannel` and `multus`. Flannel is a simple and easy-to-configure layer 3 network fabric designed for Kubernetes, while Multus is a CNI plugin that enables attaching multiple network interfaces to pods.
+> Deploys networking solutions within the Kubernetes cluster, specifically mentioning `flannel` and `multus`. Flannel is a simple and easy-to-configure layer 3 network fabric designed for Kubernetes, while Multus is a CNI plugin that enables attaching multiple network interfaces to pods.
 
 ### Step 4: Generate `deploy.csv`
-- Generates a CSV file named `deploy.csv`, which contains configuration or deployment specifications for applications or services to be deployed within the cluster. You can see it as a template or sample file for users to customize.
+> Generates a CSV file named `deploy.csv`, which contains configuration or deployment specifications for applications or services to be deployed within the cluster. You can see it as a template or sample file for users to customize.
 
 ### Step 5: Deploy `deploy.csv`
-- Takes the previously generated (or provided) `deploy.csv` file and deploys its contents to the Kubernetes cluster. This step involve parsing the CSV file and applying the configurations it contains, such as deploying applications, storage and network.
+> Takes the previously generated (or provided) `deploy.csv` file and deploys its contents to the Kubernetes cluster. This step involve parsing the CSV file and applying the configurations it contains, such as deploying applications, storage and network.
 
-You can run those steps from using one of four ways:
-1. `./kubecsv` then go throw the steps from `0` to `5` by selecting the step number from `kubecsv` CLI main menu
+You can run those above steps using one of four ways:
+1. `./kubecsv` then go throw the steps from `0` to `5` by selecting the step number from `kubecsv` CLI main menu (recommended)
 2. `./kubecsv` then selecting `all` from `kubecsv` CLI main menu, this option will go throw the steps from `0` to `5` by automaticlly
 3. `./kubecsv 0` or `./kubecsv 1` or `./kubecsv 2` or `./kubecsv 3` or `./kubecsv 4` or `./kubecsv 5` where the script will skip `kubecsv` CLI interactive main menu to execute the inputed step number
 4. `./kubecsv all` this option will go throw the steps from `0` to `5` by automaticlly skipping `kubecsv` CLI interactive main menu
