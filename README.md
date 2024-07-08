@@ -122,31 +122,41 @@ This shell script is using:
 
 ---
 ## `kubecsv` INSTALLATION STEPS
-The script is divided into six distinguished steps as following:
+### You can run those below steps using one of four ways:
 
-### Step 0: Uninstall Everything
+**1. THE INTERACTIVE WAY**
+> `./kubecsv` then go throw the steps from `0` to `5` by selecting the step number from `kubecsv` CLI main menu (recommended)
+
+**2. THE *ALL AT ONCE* INTERACTIVE WAY**
+> `./kubecsv` then select `all` from `kubecsv` CLI main menu, this option will go throw the steps from `0` to `5` by automatically
+
+**3. THE NON-INTERACTIVE WAY**
+> `./kubecsv 0` or `./kubecsv 1` or `./kubecsv 2` or `./kubecsv 3` or `./kubecsv 4` or `./kubecsv 5` where the script will skip `kubecsv` CLI interactive main menu to execute the implanted step number
+
+**4. THE *ALL AT ONCE* NON-INTERACTIVE WAY**
+> `./kubecsv all` this option will go throw the steps from `0` to `5` by automatically skipping `kubecsv` CLI interactive main menu
+
+
+### The script is divided into six distinguished steps as follows:
+
+#### Step 0: Uninstall Everything
+
 > This step involves cleaning up or uninstalling all components related to the Kubernetes cluster that were previously installed or configured by this script. It might include removing installed packages, deleting configuration files, and cleaning up any temporary files created during the process.
 
-### Step 1: Prepare Hosts and Install Pre-requisites
+#### Step 1: Prepare Hosts and Install Pre-requisites
 > Executes necessary commands to prepare the host machines for Kubernetes installation. This includes updating package lists, installing required packages via `apt`, and possibly setting up necessary system configurations.
 
-### Step 2: Create Kubernetes Cluster
+#### Step 2: Create Kubernetes Cluster
 > Initializes a Kubernetes cluster using `kubeadm init`. This step sets up the control plane and prepares the cluster for adding worker nodes. and execute `kubeadm join` command on the workers nodes.
 
-### Step 3: Deploy Kubernetes Network
+#### Step 3: Deploy Kubernetes Network
 > Deploys networking solutions within the Kubernetes cluster, specifically mentioning `flannel` and `multus`. Flannel is a simple and easy-to-configure layer 3 network fabric designed for Kubernetes, while Multus is a CNI plugin that enables attaching multiple network interfaces to pods.
 
-### Step 4: Generate `deploy.csv`
+#### Step 4: Generate `deploy.csv`
 > Generates a CSV file named `deploy.csv`, which contains configuration or deployment specifications for applications or services to be deployed within the cluster. You can see it as a template or sample file for users to customize.
 
-### Step 5: Deploy `deploy.csv`
+#### Step 5: Deploy `deploy.csv`
 > Takes the previously generated (or provided) `deploy.csv` file and deploys its contents to the Kubernetes cluster. This step involve parsing the CSV file and applying the configurations it contains, such as deploying applications, storage and network.
-> 
-> You can run those above steps using one of four ways:
-> 1. `./kubecsv` then go throw the steps from `0` to `5` by selecting the step number from `kubecsv` CLI main menu (recommended)
-> 2. `./kubecsv` then selecting `all` from `kubecsv` CLI main menu, this option will go throw the steps from `0` to `5` by automatically
-> 3. `./kubecsv 0` or `./kubecsv 1` or `./kubecsv 2` or `./kubecsv 3` or `./kubecsv 4` or `./kubecsv 5` where the script will skip `kubecsv` CLI interactive main menu to execute the implanted step number
-> 4. `./kubecsv all` this option will go throw the steps from `0` to `5` by automaticlly skipping `kubecsv` CLI interactive main menu
 
 ---
 ## `kubecsv` Tools
