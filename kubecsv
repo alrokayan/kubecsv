@@ -612,12 +612,6 @@ for nic in $(ip link show | grep -e cni -e flannel | awk -F@ '{print $1}' | awk 
   ip link delete $nic
 done
 
-echo "-- Node $i: Removing DHCP demon" >&3
-systemctl stop cni-dhcp.service
-systemctl disable cni-dhcp.service
-rm -f /etc/systemd/system/cni-dhcp.service
-systemctl daemon-reload
-
 echo "-- Node $i: Force stopping cni demon"
 kill -9 $(ps aux | grep "/opt/cni/bin" | awk '{print $2}')
 
@@ -1092,7 +1086,7 @@ function step3() {
     kubectl label --overwrite ns kube-network pod-security.kubernetes.io/enforce=privileged
 
     for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
-      echo "-- Node $i: Creating subnet.env, downloading cni bins, and running dhcp daemon" >&3
+      echo "-- Node $i: Creating subnet.env and downloading cni binaries" >&3
       (
       ssh -i "$MY_PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[i]}" i=$i CLUSTER_CIDR_FIRST_TWO_OCTETS=$CLUSTER_CIDR_FIRST_TWO_OCTETS bash <<'____EOF____'
 #!/bin/bash
@@ -1112,29 +1106,6 @@ echo "-- NODE $i: Downloading CNI binaries cni-plugins-linux-$( [ $(uname -m) = 
 mkdir -p /opt/cni/bin
 curl -s -L "https://github.com/containernetworking/plugins/releases/download/v1.5.0/cni-plugins-linux-$( [ $(uname -m) = aarch64 ] && echo arm64 || echo amd64)"-v1.5.0.tgz | tar xzf - -C /opt/cni/bin
 chown -R "$(id -un)":"$(id -Gn)" /opt/cni
-
-echo "-- NODE $i: Creating /etc/systemd/system/cni-dhcp.service"
-rm -f /run/cni/dhcp.sock
-rm -f /etc/systemd/system/cni-dhcp.service
-cat >/etc/systemd/system/cni-dhcp.service <<EOF
-[Unit]
-Description=Executing/opt/cni/bin/dhcp as service
-After=multi-user.target
-
-[Service]
-Type=idle
-User=root
-ExecStart=/opt/cni/bin/dhcp daemon
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-chmod 644 /etc/systemd/system/cni-dhcp.service
-systemctl daemon-reload
-systemctl enable --now cni-dhcp.service
-systemctl status cni-dhcp.service
 ____EOF____
       ) &
     done
@@ -1167,11 +1138,83 @@ ____EOF____
                  --namespace kube-network --create-namespace \
                  --set namespaceOverride="kube-network" \
                  --set CNIVersion="1.0.0"
+    
+    echo "-- Deploying DHCP CNI plugin" >&3
+    cat <<EOF | kubectl create -f -
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kube-dhcp-ds-amd64
+  namespace: kube-network
+  labels:
+    tier: node
+    app: dhcp
+spec:
+  selector:
+    matchLabels:
+      tier: node
+      app: dhcp
+  template:
+    metadata:
+      labels:
+        tier: node
+        app: dhcp
+    spec:
+      hostNetwork: true
+      nodeSelector:
+        beta.kubernetes.io/arch: amd64
+      tolerations:
+      - operator: Exists
+        effect: NoSchedule
+      # serviceAccountName: dhcp
+      initContainers:
+      - name: clean-up
+        image: busybox
+        command: ["/bin/sh"]
+        args: ["-c", "rm -f /host/run/cni/dhcp.sock"]
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: socketpath
+          mountPath: /host/run/cni
+      containers:
+      - name: kube-dhcp
+        # Based on: https://github.com/k8snetworkplumbingwg/reference-deployment/blob/master/multus-dhcp/Dockerfile
+        image: quay.io/aneeshkp/cni-dhcp-daemon:latest
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "50Mi"
+          limits:
+            cpu: "100m"
+            memory: "50Mi"
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: socketpath
+          mountPath: /host/run/cni
+        - name: procpath
+          mountPath: /host/proc
+        - name: netnspath
+          mountPath: /host/var/run/netns
+          mountPropagation: HostToContainer
+      volumes:
+        - name: socketpath
+          hostPath:
+            path: /run/cni
+        - name: procpath
+          hostPath:
+            path: /proc
+        - name: netnspath
+          hostPath:
+            path: /run/netns
+EOF
 
     echo "-- Restarting CoreDNS" >&3
     kubectl delete pod --selector=k8s-app=kube-dns -n kube-system --grace-period=0 --force
-    echo "-- waiting for flannel and Multus" >&3
-    while [ "$(kubectl get pods -A -l app=flannel -ojson | jq '.items[0].status.phase')" != "\"Running\"" ] || [ "$(kubectl get pods -A -l app.kubernetes.io/name=multus-cni -ojson | jq '.items[0].status.phase')" != "\"Running\"" ]; do
+    echo "-- waiting for flannel" >&3
+    while [ "$(kubectl get pods -A -l app=flannel -ojson | jq '.items[0].status.phase')" != "\"Running\"" ]; do
       sleep 5
     done
     sleep 5
