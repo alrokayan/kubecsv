@@ -4,16 +4,20 @@ The `kubecsv` script is a utility script runs on MacOS and Linux designed for ea
 
 ## ABSTRACT
 ### INPUT1: `kubecsv`
+
 *bash script in this github repo. Download the script using *
 
 ### INPUT2: `.env`
+
 *an enviroment variables file. The script will *autogenerate* one for you based on a set of Q/A at the very beggining of script. Step 2 and network dignostic tool will add more env values. *
 
 ### INPUT2: `deploy.csv`
+
 ![homelab.csv.png](assets/images/csv/homelab.csv.png)
 *a csv file as an input. Step 4 in the script will *autogenerate* one for you based on a set of questionnaires, also you can find several csv files as example in `examples` folder of this repo*
 
 ### OUTPUT: k8s
+
 ![homelab.csv.png](assets/images/results/homelab.csv.png)
 *That's the result after the deployment of above homelab csv file*
 
