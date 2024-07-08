@@ -4,7 +4,7 @@ The `kubecsv` script is a utility script runs on MacOS and Linux designed for ea
 
 ## ABSTRACT
 ### INPUT1: `kubecsv`
-*bash script in this github repo. Download the script using*
+*bash script in this github repo. Instractions on downloading and using the script are in section "HOW TO"*
 
 ### INPUT2: `.env`
 *an enviroment variables file. The script will *autogenerate* one for you based on a set of Q/A at the very beggining of script. Step 2 and network dignostic tool will add more env values.*
@@ -27,7 +27,7 @@ This shell script is using:
 
 > The script will download and run binaries (`helm`, `kubectl`, `jq` and `k9s`) in the bin folder where you are running the script.
 
-## How To
+## HOW TO
 ### 1st: Download the script
 ```
 curl -fsSL https://raw.githubusercontent.com/alrokayan/kubecsv/main/kubecsv -o kubecsv
