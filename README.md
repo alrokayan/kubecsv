@@ -2,16 +2,20 @@
 
 The `kubecsv` script is a utility script runs on MacOS and Linux designed for easy installation of Kubernetes cluster and deploying apps from a simple csv file, deploy.csv (check examples) on set of Ubuntu 22.04 host(s). It has beeen tested on xcp-ng VMs and bare-metal.
 
-## INPUT: `deploy.csv`
+### ABSTRACT
+## INPUT1: `kubecsv`
+*bash script in this github repo. Download the script using *
+
+## INPUT2: `.env`
+*an enviroment variables file. The script will *autogenerate* one for you based on a set of Q/A at the very beggining of script. Step 2 and network dignostic tool will add more env values. *
+
+## INPUT2: `deploy.csv`
 ![homelab.csv.png](assets/images/csv/homelab.csv.png)
-*csv file as an input. Step 4 in the script will autogenerate one for you, also you can find several csv files as example in `examples` folder of this repo*
+*a csv file as an input. Step 4 in the script will *autogenerate* one for you based on a set of questionnaires, also you can find several csv files as example in `examples` folder of this repo*
 
 ## OUTPUT: k8s
 ![homelab.csv.png](assets/images/results/homelab.csv.png)
 *That's the result after the deployment of above homelab csv file*
-
-
-![screen.gif](assets/gifs/screen.gif)
 
 ## Helpers
 This shell script is using:
@@ -24,30 +28,27 @@ This shell script is using:
 > The script will download and run binaries (`helm`, `kubectl`, `jq` and `k9s`) in the bin folder where you are running the script.
 
 ## How To
-### 1st:
-Download the script
+### 1st: Download the script
 ```
 curl -fsSL https://raw.githubusercontent.com/alrokayan/kubecsv/main/kubecsv -o kubecsv
 ```
 
-### 2ns:
-Change script file permision
+### 2ns: Change script file permision
 ```
 chmod +x kubecsv
 ```
 
-### 3rd:
-Run the script
+### 3rd: Run the script
 ```
 ./kubecsv
 ```
 
 > You can send an OPTION as an input if you know what option to send (see OPTIONS section below). For example: `./kubecsv 4` generates an example csv file based on your answer to a set of questions about your infrastracture and archecture.
 
-### 4th:
+### 4th: .env creation
 Then answer the inital questions to create the `.env` (if file doesn't exist)
 
-### 5th:
+### 5th: creating k8s cluster
 Now you should see `kubecsv` interactive interface with menu of two main sections: Steps and Tools. From Steps section, run the steps `0` (`apt` uninstall), `1` (`apt` install), `2` (`kubeadm` init/join), `3` (`flannel` and `multus`), `4` (create `deploy.csv`), and `5` (deploy `deploy.csv`). Or `all` to run all steps in sequance *(WARNING: error handling is not implimented)*
 
 ## Edit CSV
@@ -167,6 +168,9 @@ The script takes a reading from [truecharts helm charts](https://truecharts.org/
 1. **TrueChartsApps List**: https://truecharts.org/charts/description-list/
 2. **TrueCharts Apps Values**: https://github.com/truecharts/charts/tree/master/charts
 3. **TrueCharts All Apps Common Values**: https://github.com/truecharts/library-charts/blob/main/library/common/values.yaml
+
+## Full Installation
+![screen.gif](assets/gifs/screen.gif)
 
 ## TL;DR
 ```
