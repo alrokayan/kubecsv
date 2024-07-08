@@ -23,7 +23,7 @@ trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 trap "echo 'ERROR: An error occurred during execution, check log $LOG_FILE for details.' >&3"
 touch .env
 if ! cat .env | grep "export PATH="; then
-  echo "export PATH=\"$(pwd)/bin:$PATH\"" >> .env
+  echo "export PATH=\"\$(pwd)/bin:$PATH\"" >> .env
 fi
 if ! cat .env | grep "export SSH_EXTRA_ARGS="; then
   echo 'export SSH_EXTRA_ARGS="-o StrictHostKeyChecking=no"' >> .env
@@ -36,12 +36,12 @@ if [ -f "$KUBECONFIG" ]; then
 fi
 ## GENERAL DEFAULT VALUES
 export NODE_ARRAY_DEFAULT="(10.99.0.100 10.99.0.101 10.99.0.102 10.99.0.103)"
-KUBECONFIG_DEFAULT="$(pwd)/kubeconfig"
+KUBECONFIG_DEFAULT="\$(pwd)/kubeconfig"
 export KUBECONFIG_DEFAULT
 export CLUSTER_CIDR_DEFAULT="10.244"
 export TZ_DEFAULT="Etc/GMT"
 export SSH_USERNAME_DEFAULT="root"
-PRIVATE_KEY_DEFAULT="$(pwd)/.ssh/id_rsa"
+PRIVATE_KEY_DEFAULT="\$(pwd)/.ssh/id_rsa"
 export PRIVATE_KEY_DEFAULT
 ## DEFAULT VALUES FOR STEP 4 (GENERATE EXAMPLE CSV FILE)
 export CSV_MASTERNIC_DEFAULT="eth0"
