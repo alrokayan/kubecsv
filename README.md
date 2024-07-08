@@ -2,6 +2,15 @@
 
 The `kubecsv` script is a utility script runs on MacOS and Linux designed for easy installation of Kubernetes cluster and deploying apps from a simple csv file, deploy.csv (check examples) on set of Ubuntu 22.04 host(s). It has beeen tested on xcp-ng VMs and bare-metal.
 
+## INPUT: `deploy.csv`
+![homelab.csv.png](assets/images/csv/homelab.csv.png)
+*csv file as an input. Step 4 in the script will autogenerate one for you, also you can find several csv files as example in `examples` folder of this repo*
+
+## OUTPUT: k8s
+![homelab.csv.png](assets/images/results/homelab.csv.png)
+*That's the result after the deployment of above homelab csv file*
+
+
 ![screen.gif](assets/gifs/screen.gif)
 
 ## Helpers
@@ -15,41 +24,33 @@ This shell script is using:
 > The script will download and run binaries (`helm`, `kubectl`, `jq` and `k9s`) in the bin folder where you are running the script.
 
 ## How To
-### First
+### 1st:
 Download the script
 ```
 curl -fsSL https://raw.githubusercontent.com/alrokayan/kubecsv/main/kubecsv -o kubecsv
 ```
 
-### Second
+### 2ns:
 Change script file permision
 ```
 chmod +x kubecsv
 ```
 
-### Third
-Execute the script
+### 3rd:
+Run the script
 ```
 ./kubecsv
 ```
 
-> You can send an OPTION as an input if you know what option to send (see Options section below). For example: `./kubecsv 4` generates an example csv file based on your answer to a set of questions about your infrastracture and archecture.
+> You can send an OPTION as an input if you know what option to send (see OPTIONS section below). For example: `./kubecsv 4` generates an example csv file based on your answer to a set of questions about your infrastracture and archecture.
 
-### Fourth
+### 4th:
 Then answer the inital questions to create the `.env` (if file doesn't exist)
 
-### Fifth
-Now you should see `kubecsv` interactive interface with menu of two main sections: Steps and Tools. From Steps section, run the steps `0` (`apt` uninstall), `1` (`apt` install), `2` (`kubeadm` init/join), `3` (`flannel` and `multus`), `4` (create `deploy.csv`), and `5` (deploy `deploy.csv`). Or `all` to run all steps in sequance (WARNING: error handling is not implimented)
+### 5th:
+Now you should see `kubecsv` interactive interface with menu of two main sections: Steps and Tools. From Steps section, run the steps `0` (`apt` uninstall), `1` (`apt` install), `2` (`kubeadm` init/join), `3` (`flannel` and `multus`), `4` (create `deploy.csv`), and `5` (deploy `deploy.csv`). Or `all` to run all steps in sequance *(WARNING: error handling is not implimented)*
 
-## INPUT
-![homelab.csv.png](assets/images/csv/homelab.csv.png)
-*csv file as an input. Step 4 in the script will autogenerate one for you, also you can find several csv files as example in `examples` folder of this repo*
-
-## Output
-![homelab.csv.png](assets/images/results/homelab.csv.png)
-*That's the result after the deployment of above homelab csv file*
-
-## Edit
+## Edit CSV
 The best way to edit csv is via a CSV Edit extention in Studio Code, or alterativlly: MS Excel, Google Sheets (import as csv, export as csv), or just a csv coloroing extention in Studio Code.
 
 ![homelab.csv.png](assets/images/csv-edit/homelab.csv.png)
@@ -59,24 +60,24 @@ The best way to edit csv is via a CSV Edit extention in Studio Code, or alterati
 The file must be named `deploy.csv` and put in the same directory where you are ruuning `kubecsv`. The CSV columns description are:
 
 1. `app_name`: This column hold a the app name, you can put any
-2. `helm_truechart`: This column holds the app helm chart name from this [link](https://truecharts.org/charts/description-list/) or list below.
+2. `helm_truechart`: This column holds the app helm chart name from this [link](https://truecharts.org/charts/description-list/)
 3. `storage_name`: This column contains the name of the storage. It can be any, however, some times you want to overwrite a named storage. You can see all named storages from the values.yaml in [TrueCharts github repo](https://github.com/truecharts/charts/tree/master/charts)
-4. `storage_enabled`: This column is to disable a named storage (OPTIONAL)
+4. `storage_enabled`: This column is to disable a named storage *(OPTIONAL)*
 5. `storage_path`: This column contains the NFS path of the app 
-6. `storage_subPath`: This column contains the sub path follows the `storage_enabled`. As a best practise, it's better to name the `storage_subPath` as `storage_name` (OPTIONAL)
+6. `storage_subPath`: This column contains the sub path follows the `storage_enabled`. As a best practise, it's better to name the `storage_subPath` as `storage_name` *(OPTIONAL)*
 7. `storage_server`: This column for NFS server
 8.  `storage_type`: This column to indicate the storage type, for now it has been tested on `nfs` only 
 9.  `storage_mountPath`: This column contains the path of data/config inside the container
 10. `nw_master_nic`: This column for MacVLAN (dhcp or static ip) master/parent network interface
 11. `nw_mac`: This column to fix the MAC addreess of the app, useful for dhcp to assign fixed ip from the dhcp server
-12. `nw_address_with_subnet`: This column is optional. If you assign an IP/CIDR value `kubecsv` will attach a static IP, if left empty it will use dhcp (OPTIONAL) 
-13. `nw_gateway`: This column is needed only if you assign fixed IP in `nw_address_with_subnet`. It holds the gateway for the provided fix ip. (OPTIONAL)
-14. `nw_dns1`: This column is needed only if you assign fixed IP in `nw_address_with_subnet`. It holds DNS server one (OPTIONAL) 
-15. `nw_dns2`: This column is needed only if you assign fixed IP in `nw_address_with_subnet`. It holds DNS server two (OPTIONAL) 
-16. `run_as_user`: This column is optional too if you want to set a UID for the app to run as (OPTIONAL)
-17. `run_as_group`: This column is optional too if you want to set a GID for the app to run as (OPTIONAL)
-18. `privileged`: This column contains true or false. true means the app will run in a `privileged` mode. Default is false. (OPTIONAL)
-19. `extra_helm_values`: This column contains any extra values you want to add in a form of `--set key:value` (OPTIONAL)
+12. `nw_address_with_subnet`: This column is optional. If you assign an IP/CIDR value `kubecsv` will attach a static IP, if left empty it will use dhcp *(OPTIONAL)*
+13. `nw_gateway`: This column is needed only if you assign fixed IP in `nw_address_with_subnet`. It holds the gateway for the provided fix ip. *(OPTIONAL)*
+14. `nw_dns1`: This column is needed only if you assign fixed IP in `nw_address_with_subnet`. It holds DNS server one *(OPTIONAL)*
+15. `nw_dns2`: This column is needed only if you assign fixed IP in `nw_address_with_subnet`. It holds DNS server two *(OPTIONAL)*
+16. `run_as_user`: This column is optional too if you want to set a UID for the app to run as *(OPTIONAL)*
+17. `run_as_group`: This column is optional too if you want to set a GID for the app to run as *(OPTIONAL)*
+18. `privileged`: This column contains true or false. true means the app will run in a `privileged` mode. Default is false *(OPTIONAL)*
+19. `extra_helm_values`: This column contains any extra values you want to add in a form of `--set key:value` *(OPTIONAL)*
 
 ## TrueChart Charts
 `kubecsv` supports almost all of the 700+ TrueCharts charts. You can view them here: https://truecharts.org/charts/description-list/
@@ -89,7 +90,7 @@ The file must be named `deploy.csv` and put in the same directory where you are 
 - `./kubecsv 3` will run step 3 (deploy k8s network), see details below (non-interactive)
 - `./kubecsv 4` will run step 4 (generate an example deploy.csv), see details below (non-interactive)
 - `./kubecsv 5` will run step 5 (deploy deploy.csv), see details below (non-interactive)
-- `./kubecsv all` will run the steps 0 to 5, one by one (WARNING: error handling is not implimented) (non-interactive)
+- `./kubecsv all` will run the steps 0 to 5, one by one *(WARNING: error handling is not implimented) (non-interactive)*
 - `./kubecsv un3` Will undoes the actions performed in steps 3 and 5, effectively removing all applications and the Kubernetes network configuration (non-interactive)
 - `./kubecsv un5` Will specifically targets the undoing of step 5, removing all applications deployed from the `deploy.csv` without affecting the network configuration (non-interactive)
 - `./kubecsv k` Will run k9s monitoring tool using the configured kubeconfig (interactive)
@@ -163,9 +164,9 @@ The script takes a reading from [truecharts helm charts](https://truecharts.org/
 *That's the result after deployment of homelab csv file*
 
 ## Useful links:
-1. Charts List: https://truecharts.org/charts/description-list/
-2. Charts values: https://github.com/truecharts/charts/tree/master/charts
-3. Common values: https://github.com/truecharts/library-charts/blob/main/library/common/values.yaml
+1. **TrueChartsApps List**: https://truecharts.org/charts/description-list/
+2. **TrueCharts Apps Values**: https://github.com/truecharts/charts/tree/master/charts
+3. **TrueCharts All Apps Common Values**: https://github.com/truecharts/library-charts/blob/main/library/common/values.yaml
 
 ## TL;DR
 ```
