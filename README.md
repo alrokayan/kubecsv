@@ -121,26 +121,25 @@ This shell script is using:
 `kubecsv` supports almost all of the 700+ TrueCharts charts. You can view them here: https://truecharts.org/charts/description-list/
 
 ---
-## `kubecsv` INSTALLATION STEPS
-### You can run those below steps using one of four ways:
+## METHODS TO DEPLOY
 
-**1. THE INTERACTIVE WAY**
+**1. STEP-BY-STEP INTERACTIVE**
 > `./kubecsv` then go throw the steps from `0` to `5` by selecting the step number from `kubecsv` CLI main menu (recommended)
 
-**2. THE *ALL AT ONCE* INTERACTIVE WAY**
+**2. *ALL AT ONCE* INTERACTIVE**
 > `./kubecsv` then select `all` from `kubecsv` CLI main menu, this option will go throw the steps from `0` to `5` by automatically
 
-**3. THE NON-INTERACTIVE WAY**
+**3. STEP-BY-STEP NON-INTERACTIVE**
 > `./kubecsv 0` or `./kubecsv 1` or `./kubecsv 2` or `./kubecsv 3` or `./kubecsv 4` or `./kubecsv 5` where the script will skip `kubecsv` CLI interactive main menu to execute the implanted step number
 
-**4. THE *ALL AT ONCE* NON-INTERACTIVE WAY**
+**4. *ALL AT ONCE* NON-INTERACTIVE**
 > `./kubecsv all` this option will go throw the steps from `0` to `5` by automatically skipping `kubecsv` CLI interactive main menu
 
-
-### The script is divided into six distinguished steps as follows:
+---
+## `kubecsv` INSTALLATION STEPS
+![steps.png](assets/images/menu/steps.png)
 
 #### Step 0: Uninstall Everything
-
 > This step involves cleaning up or uninstalling all components related to the Kubernetes cluster that were previously installed or configured by this script. It might include removing installed packages, deleting configuration files, and cleaning up any temporary files created during the process.
 
 #### Step 1: Prepare Hosts and Install Pre-requisites
@@ -159,7 +158,9 @@ This shell script is using:
 > Takes the previously generated (or provided) `deploy.csv` file and deploys its contents to the Kubernetes cluster. This step involve parsing the CSV file and applying the configurations it contains, such as deploying applications, storage and network.
 
 ---
-## `kubecsv` Tools
+## `kubecsv` TOOLS
+![tools.png](assets/images/menu/tools.png)
+
 In addition to the above six steps and the option to run `all` of them at once; you have the following tools at your disposal:
 - Option `un3`: *un*do step `3` and `5` (deleting all deployed apps and network related resources)
 - Option `un5`: *un*do step `5` (deleting all apps and keep network related resources)
@@ -201,6 +202,9 @@ With this script you can deploy multiple home-assistant and multiple zigbee2mqtt
 ![multi-home-assistant.csv.png](assets/images/csv-edit/multi-home-assistant.csv.png)
 *That's how the csv file looks like opening it with janisdd.vscode-edit-csv*
 
+![multi-home-assistant.csv.png](assets/images/results/multi-home-assistant.csv.png)
+*That's the result after deployment of multi-home-assistant.csv file*
+
 ### 2. Homelab
 The script takes a reading from [TrueCharts helm charts](https://truecharts.org/charts/description-list/) and deploy them. You can set static IP or dhcp IP with fixed MAC address all within the csv file.
 
@@ -211,7 +215,7 @@ The script takes a reading from [TrueCharts helm charts](https://truecharts.org/
 *That's how the csv file looks like opening it with janisdd.vscode-edit-csv*
 
 ![homelab.csv.png](assets/images/results/homelab.csv.png)
-*That's the result after deployment of homelab csv file*
+*That's the result after deployment of homelab.csv file*
 
 ---
 ## USEFUL LINKS:
