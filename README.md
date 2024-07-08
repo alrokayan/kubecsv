@@ -186,11 +186,8 @@ Every time you run the script, a `logs` folder will be created (if it doesn't ex
 Mac or Linux as a local machine to run `kubecsv` shell script. Regarding the hosts (nodes) `kubecsv` script has been tested on Ubuntu 22.04 VM and bare-metal. The script works for one node or multiple. Please check [`kubeadm` system requirements](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/).
 
 `kubecsv` is tested on:
-    +------------------------+
-    | Ubuntu 22.04 (amd64)   |
-    +------------------------+
-    | macOS 14.5 (arm64)     |
-    +------------------------+
+- Ubuntu 22.04 (amd64)
+- macOS 14.5 (arm64)
 
 ---
 ## EXAMPLES
