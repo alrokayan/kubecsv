@@ -1347,7 +1347,7 @@ spec:
             "provide": [
               {
                 "option": "host-name",
-                "fromArg": "K8S_POD_NAME"
+                "fromArg": "k8s-$APP_NAMESPACE"
               }
             ]
           }
