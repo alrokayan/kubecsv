@@ -1,9 +1,9 @@
 # `kubecsv`
-`kubecsv` provides one of the simplest method to create multiple-networks, multiple-home-assistant, multiple-zigbee2mqtt, and multiple-mosquitto in a Kubernetes' cluster to eventually the script deploy a static and dhcp-based pods' network interface.
+`kubecsv` script designed for an easy installation of Kubernetes cluster and deploying a set of apps and their storage and network from a single comma-separated values (csv) file, `deploy.csv`, (check the `examples` folder) on set of Ubuntu 22.04 host(s). It has been tested on 7-node xcp-ng VMs with multiple VLAN-based network interfaces and a single bare-metal. Each container has two network interfaces (one interface goes direct to a nas)
 
 `kubecsv` runs on macOS and Linux. Cluster's nodes/hosts are running Ubuntu 22.04 (amd64)
 
-`kubecsv` script designed for an easy installation of Kubernetes cluster and deploying a set of apps and their storage and network from a single comma-separated values (csv) file, `deploy.csv`, (check the `examples` folder) on set of Ubuntu 22.04 host(s). It has been tested on 7-node xcp-ng VMs with multiple VLAN-based network interfaces and a single bare-metal. Each container has two network interfaces (one interface goes direct to a nas)
+`kubecsv` provides one of the simplest method to create multiple-networks, multiple-home-assistant, multiple-zigbee2mqtt, and multiple-mosquitto in a Kubernetes' cluster to eventually the script deploy a static and dhcp-based pods' network interface.
 
 > *Instructions on downloading and using the script are in section "HOW TO" below. The script will *autogenerate* one for you based on a set of Q/A at the very beginning of script. Step 2 and network diagnostic tool will add more env values.*
 
