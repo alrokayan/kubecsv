@@ -1231,19 +1231,12 @@ EOF
     fi
     sleep 5
     FixDNS
-    echo "-- Installing prometheus-operator" >&3
-    # https://github.com/truecharts/charts/blob/master/charts/system/prometheus-operator/values.yaml
-    helm upgrade --install prometheus-operator oci://tccr.io/truecharts/prometheus-operator --namespace=kube-network
-    # echo "-- Installing metrics-server" >&3
-    # helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-    # helm repo update
-    # helm upgrade --install metrics-server -n kube-network metrics-server/metrics-server
-    # echo "-- Installing cloudnative-pg" >&3
-    # # https://github.com/truecharts/charts/blob/master/charts/system/cloudnative-pg/values.yaml
-    # helm upgrade --install cloudnative-pg oci://tccr.io/truecharts/cloudnative-pg --namespace=kube-truecharts
-    # echo "-- Installing cert-manager" >&3
-    # # https://github.com/truecharts/charts/blob/master/charts/system/cert-manager/values.yaml
-    # helm upgrade --install cert-manager oci://tccr.io/truecharts/cert-manager --namespace=kube-truecharts
+    echo "-- Installing prometheus-operator and metrics-server" >&3
+    # DEFAULT VALUES: https://github.com/truecharts/charts/blob/master/charts/system/prometheus-operator/values.yaml
+    ( helm upgrade --install prometheus-operator oci://tccr.io/truecharts/prometheus-operator --namespace=kube-network ) &
+    # DEFAULT VALUES: https://github.com/kubernetes-sigs/metrics-server/blob/master/charts/metrics-server/values.yaml
+    ( helm upgrade --install metrics-server metrics-server/metrics-server --set args="{--kubelet-insecure-tls,--kubelet-preferred-address-types=InternalIP,--cert-dir=/tmp}" --set apiService.insecureSkipTLSVerify=true --namespace=kube-network ) &
+    wait
   else
     echo "Please do step 2 before kubernetes cluster is not installed .." >&3
   fi
