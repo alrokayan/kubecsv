@@ -1409,7 +1409,7 @@ function step5() {
     if [ "$privileged" != "" ]; then
       echo "csv raw $j -- $app_name: Adding privileged: $privileged to the values .." >&3
       VALUES+="--set securityContext.container.privileged=$privileged "
-      VALUES+="--set securityContext.container.UMASK=000"
+      VALUES+="--set securityContext.container.UMASK=000 "
       VALUES+="--set securityContext.container.runAsNonRoot=false "
       VALUES+="--set securityContext.container.readOnlyRootFilesystem=false "
     fi
