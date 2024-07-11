@@ -1184,9 +1184,9 @@ ____EOF____
     helm upgrade --install flannel \
       --namespace kube-network --create-namespace \
       --set podCidr="${CLUSTER_CIDR_FIRST_TWO_OCTETS}.0.0/16" \
+      --set backend="ipip" \
+      --set directRouting=true \
       flannel/flannel
-# --set backend="ipip" \
-# --set directRouting=true
 
     for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
       (
@@ -1554,60 +1554,48 @@ while $CONTINUE; do
     END_OF_SCRIPT
     ;;
   0)
-    echo "------[ STEP 0 (apt uninstall) STARTED ]------" >&3
     step0
-    echo "------[ STEP 0 (apt uninstall) COMPLETED ]------" >&3
+    echo "-- Step 0 (apt uninstall) completed" >&3
     END_OF_SCRIPT
     ;;
   1)
-    echo "------[ STEP 1 (apt install) STARTED ]------" >&3
     step1
-    echo "------[ STEP 1 (apt install) COMPLETED ]------" >&3
+    echo "-- Step 1 (apt install) completed" >&3
     END_OF_SCRIPT
     ;;
   2)
-    echo "------[ STEP 2 (cluster creation) STARTED ]------" >&3
     step2
-    echo "------[ STEP 2 (cluster creation) COMPLETED ]------" >&3
+    echo "-- Step 2 (cluster creation) completed" >&3
     END_OF_SCRIPT
     ;;
   3)
-    echo "------[ STEP 3 (network deployment) STARTED ]------" >&3
     step3
-    echo "------[ STEP 3 (network deployment) COMPLETED ]------" >&3
+    echo "-- Step 3 (network deployment) completed" >&3
     END_OF_SCRIPT
     ;;
   4)
-    echo "------[ STEP 4 (deploy.csv creation) STARTED ]------" >&3
     step4
-    echo "------[ STEP 4 (deploy.csv creation) COMPLETED ]------" >&3
+    echo "-- Step 4 (deploy.csv creation) completed" >&3
     END_OF_SCRIPT
     ;;
   5)
-    echo "------[ STEP 5 (deploy.csv deployment STARTED ]------" >&3
     step5
-    echo "------[ STEP 5 (deploy.csv deployment COMPLETED ]------" >&3
+    echo "-- Step 5 (deploy.csv deployment) completed" >&3
     END_OF_SCRIPT
     ;;
   all)
-    echo "------[  STEP 0 (apt uninstall) STARTED  ]------" >&3
     step0
-    echo "------[  STEP 0 (apt uninstall) COMPLETED - STEP 1 (apt install) WILL START IN 10 SECONDS  ]------" >&3
-    sleep 10
+    echo "-- Step 0 (apt uninstall) completed" >&3
     step1
-    echo "------[  STEP 1 (apt install) COMPLETED - STEP 2 (cluster creation) WILL START IN 10 SECONDS  ]------" >&3
-    sleep 10
+    echo "-- Step 1 (apt install) completed" >&3
     step2
-    echo "------[  STEP 2 (cluster creation) COMPLETED - STEP 3 (network deployment) WILL START IN 10 SECONDS  ]------" >&3
-    sleep 10
+    echo "-- Step 2 (cluster creation) completed" >&3
     step3
-    echo "------[  STEP 3 (network deployment) COMPLETED - STEP 4 (deploy.csv creation) WILL START IN 10 SECONDS  ]------" >&3
-    sleep 10
+    echo "-- Step 3 (network deployment) completed" >&3
     step4
-    echo "------[  STEP 4 (deploy.csv creation) COMPLETED - STEP 5 (deploy.csv deployment) WILL START IN 10 SECONDS  ]------" >&3
-    sleep 10
+    echo "-- Step 4 (deploy.csv creation) completed" >&3
     step5
-    echo "------[ STEP 5 (deploy.csv deployment) COMPLETED - ALL STEPS COMPLETED ]------" >&3
+    echo "-- Step 5 (deploy.csv deployment) completed" >&3
     END_OF_SCRIPT
     ;;
   *) ## Invalid option
