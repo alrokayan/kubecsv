@@ -7,3 +7,4 @@ bin
 .env.BACKUP
 .env
 kubeconfig
+.nfs*
