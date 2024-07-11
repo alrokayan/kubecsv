@@ -22,9 +22,7 @@ exec 3>&1 1>>"$LOG_FILE" 2>&1
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 trap "echo 'ERROR: An error occurred during execution, check log $LOG_FILE for details.' >&3"
 touch .env
-if ! cat .env | grep "export PATH="; then
-  echo "export PATH=\"\$(pwd)/bin:\$PATH\"" >> .env
-fi
+export PATH="$(pwd)/bin:$PATH"
 if ! cat .env | grep "export SSH_EXTRA_ARGS="; then
   echo 'export SSH_EXTRA_ARGS="-o StrictHostKeyChecking=no"' >> .env
 fi
@@ -486,11 +484,10 @@ function runDNSTool() {
 #######################################
 #######################################
 function binInstall() {
-  forceinstallbin=true
-  if ! $1; then forceinstallbin=false; fi
+  forceinstallbin=$1
   if [[ "$(uname -s)" == *"Linux"* ]]; then
     echo "-- OS: Linux - CHECKING BINARIES" >&3
-    if [ ! -f bin/helm ] || $forceinstallbin; then
+    if ! [ -f bin/helm ] || $forceinstallbin; then
       rm -f bin/helm
       curl -L https://get.helm.sh/helm-v3.15.2-linux-"$(dpkg --print-architecture)".tar.gz -o tmp/helm.tar.gz
       tar -zxf tmp/helm.tar.gz -C tmp
@@ -499,21 +496,21 @@ function binInstall() {
       chmod +x bin/helm
       if [ "$(which helm)" == "$(pwd)/bin/helm" ]; then echo "-- bin/helm installed successfully" >&3; fi
     fi
-    if [ ! -f bin/kubectl ] || $forceinstallbin; then
+    if ! [ -f bin/kubectl ] || $forceinstallbin; then
       rm -f bin/kubectl
       curl -L "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$(dpkg --print-architecture)/kubectl" -o bin/kubectl
       chown "$(id -un)":"$(id -gn)" bin/kubectl
       chmod +x bin/kubectl
       if [ "$(which kubectl)" == "$(pwd)/bin/kubectl" ]; then echo "-- bin/kubectl installed successfully" >&3; fi
     fi
-    if [ ! -f bin/jq ] || $forceinstallbin; then
+    if ! [ -f bin/jq ] || $forceinstallbin; then
       rm -f bin/jq
       curl -L "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-$(dpkg --print-architecture)" -o bin/jq
       chown "$(id -un)":"$(id -gn)" bin/jq
       chmod +x bin/jq
       if [ "$(which jq)" == "$(pwd)/bin/jq" ]; then echo "-- bin/jq installed successfully" >&3; fi
     fi
-    if [ ! -f bin/k9s ] || $forceinstallbin; then
+    if ! [ -f bin/k9s ] || $forceinstallbin; then
       rm -f bin/k9s
       curl -L https://github.com/derailed/k9s/releases/download/v0.32.5/k9s_Linux_"$(dpkg --print-architecture)".tar.gz -o tmp/k9s.tar.gz
       mkdir tmp/k9s
@@ -523,18 +520,10 @@ function binInstall() {
       chmod +x bin/k9s
       if [ "$(which k9s)" == "$(pwd)/bin/k9s" ]; then echo "-- bin/k9s installed successfully" >&3; fi
     fi
-    # if [ ! -f bin/cilium ] || $forceinstallbin; then
-    #   CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
-    #   curl -L "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-$(dpkg --print-architecture).tar.gz" -o tmp/cilium.tar.gz
-    #   tar -zxf tmp/cilium.tar.gz -C bin
-    #   chown "$(id -un)":"$(id -gn)" bin/cilium
-    #   chmod +x bin/cilium
-    #   if [ "$(which cilium)" == "$(pwd)/bin/cilium" ]; then echo "-- bin/cilium installed successfully" >&3; fi
-    # fi
   fi
   if [[ "$(uname -s)" == *"Darwin"* ]]; then
     echo "-- OS: MacOS" >&3
-    if [ ! -f bin/helm ] || $forceinstallbin; then
+    if ! [ -f bin/helm ] || $forceinstallbin; then
       rm -f bin/helm
       curl -L "https://get.helm.sh/helm-v3.15.2-darwin-$(arch).tar.gz" -o tmp/helm.tar.gz
       tar -zxf tmp/helm.tar.gz -C tmp
@@ -543,21 +532,21 @@ function binInstall() {
       chmod +x bin/helm
       if [ "$(which helm)" == "$(pwd)/bin/helm" ]; then echo "-- bin/helm installed successfully" >&3; fi
     fi
-    if [ ! -f bin/kubectl ] || $forceinstallbin; then
+    if ! [ -f bin/kubectl ] || $forceinstallbin; then
       rm -f bin/kubectl
       curl -L "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/darwin/$(arch)/kubectl" -o bin/kubectl
       chown "$(id -un)":"$(id -gn)" bin/kubectl
       chmod +x bin/kubectl
       if [ "$(which kubectl)" == "$(pwd)/bin/kubectl" ]; then echo "-- bin/kubectl installed successfully" >&3; fi
     fi
-    if [ ! -f bin/jq ] || $forceinstallbin; then
+    if ! [ -f bin/jq ] || $forceinstallbin; then
       rm -f bin/jq
       curl -L "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-macos-$(arch)" -o bin/jq
       chown "$(id -un)":"$(id -gn)" bin/jq
       chmod +x bin/jq
       if [ "$(which jq)" == "$(pwd)/bin/jq" ]; then echo "-- bin/jq installed successfully" >&3; fi
     fi
-    if [ ! -f bin/k9s ] || $forceinstallbin; then
+    if ! [ -f bin/k9s ] || $forceinstallbin; then
       rm -f bin/k9s
       curl -L h"ttps://github.com/derailed/k9s/releases/download/v0.32.5/k9s_Darwin_$(arch).tar.gz" -o tmp/k9s.tar.gz
       mkdir tmp/k9s
@@ -567,14 +556,6 @@ function binInstall() {
       chmod +x bin/k9s
       if [ "$(which k9s)" == "$(pwd)/bin/k9s" ]; then echo "-- bin/k9s installed successfully" >&3; fi
     fi
-    # if [ ! -f bin/cilium ] || $forceinstallbin; then
-    #   CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
-    #   curl -L "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-darwin-$(arch).tar.gz" -o tmp/cilium.tar.gz
-    #   tar -zxf tmp/cilium.tar.gz -C bin
-    #   chown "$(id -un)":"$(id -gn)" bin/cilium
-    #   chmod +x bin/cilium
-    #   if [ "$(which cilium)" == "$(pwd)/bin/cilium" ]; then echo "-- bin/cilium installed successfully" >&3; fi
-    # fi
   fi
   which helm
   which kubectl
