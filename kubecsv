@@ -1399,14 +1399,19 @@ function step5() {
     if [ "$run_as_user" != "" ]; then
       echo "csv raw $j -- $app_name: Adding runAsUser: $run_as_user to the values .." >&3
       VALUES+="--set securityContext.container.runAsUser=$run_as_user "
+      VALUES+="--set securityContext.container.PUID=$run_as_user "
     fi
     if [ "$run_as_group" != "" ]; then
       echo "csv raw $j -- $app_name: Adding runAsGroup: $run_as_group to the values .." >&3
       VALUES+="--set securityContext.container.runAsGroup=$run_as_group "
+      VALUES+="--set securityContext.pod.fsGroup=$run_as_group "
     fi
     if [ "$privileged" != "" ]; then
       echo "csv raw $j -- $app_name: Adding privileged: $privileged to the values .." >&3
       VALUES+="--set securityContext.container.privileged=$privileged "
+      VALUES+="--set securityContext.container.UMASK=000"
+      VALUES+="--set securityContext.container.runAsNonRoot=false "
+      VALUES+="--set securityContext.container.readOnlyRootFilesystem=false "
     fi
     if [ "$extra_helm_values" != "" ]; then
       echo "csv raw $j -- $app_name: Adding extra values: $extra_helm_values .." >&3
