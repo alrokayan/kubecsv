@@ -1119,6 +1119,7 @@ function step3() {
   echo "-- Adding helm repos" >&3
   helm repo add flannel https://flannel-io.github.io/flannel/
   helm repo add bitnami https://charts.bitnami.com/bitnami
+  helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
 
   echo "-- Updating helm repos" >&3
   helm repo update
