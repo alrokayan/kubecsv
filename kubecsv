@@ -291,6 +291,130 @@ ____EOF____
 
 #######################################
 #######################################
+# FUNCTION createNetworkAttachmentDefinition_STATIC
+#######################################
+#######################################
+function createNetworkAttachmentDefinition_STATIC() {
+  cat <<EOF | kubectl create -f -
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: $BRIDGE_NAME
+  namespace: $APP_NAMESPACE
+spec:
+  config: '{
+      "cniVersion": "1.0.0",
+      "name": "$BRIDGE_NAME",
+      "plugins": [
+        {
+          "cniVersion": "1.0.0",
+          "type": "macvlan",
+          "mtu": 0,
+          "linkInContainer": true,
+          "isDefaultGateway": true,
+          "mode": "bridge",
+          "master": "$BRIDGE_NAME",
+          "mac": "$MAC",
+          "ipam": {
+            "type": "static",
+            "addresses":
+            [
+              {
+                "address": "$IPCIDR", 
+                "gateway": "$GW"
+              }
+            ],
+            "routes":
+            [
+              {
+                "dst": "0.0.0.0/0"
+              }
+            ]
+          },
+          "dns":
+          {
+            "nameservers":
+            [
+              "$DNS1",
+              "$DNS2" 
+            ]
+          }
+        },
+        {
+          "type": "portmap",
+          "capabilities": {
+            "portMappings": true
+          },
+          "snat": true
+        },
+        {
+          "capabilities": { "mac": true },
+          "type": "tuning"
+        }
+      ]
+    }'
+EOF
+}
+
+#######################################
+#######################################
+# FUNCTION createNetworkAttachmentDefinition_DHCP
+#######################################
+#######################################
+function createNetworkAttachmentDefinition_DHCP() {
+  cat <<EOF | kubectl create -f -
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: $BRIDGE_NAME
+  namespace: $APP_NAMESPACE
+spec:
+  config: '{
+      "cniVersion": "1.0.0",
+      "name": "$BRIDGE_NAME",
+      "plugins": [
+        {
+          "cniVersion": "1.0.0",
+          "type": "macvlan",
+          "mtu": 0,
+          "linkInContainer": true,
+          "mode": "bridge",
+          "master": "$BRIDGE_NAME",
+          "mac": "$MAC",
+          "ipam": {
+            "type": "dhcp",
+            "daemonSocketPath": "/run/cni/dhcp.sock",
+            "request": [
+              {
+                  "skipDefault": false
+              }
+            ],
+            "provide": [
+              {
+                "option": "host-name",
+                "fromArg": "k8s-$APP_NAMESPACE"
+              }
+            ]
+          }
+        },
+        {
+          "type": "portmap",
+          "capabilities": {
+            "portMappings": true
+          },
+          "snat": true
+        },
+        {
+          "capabilities": { "mac": true },
+          "type": "tuning"
+        }
+      ]
+    }'
+EOF
+}
+
+#######################################
+#######################################
 ###### FUNCTION SWAPRemoval ###########
 #######################################
 #######################################
@@ -328,80 +452,22 @@ function runDNSTool() {
   readVar app_dnstools_master_nic "eth0" "Please entre master NIC for dnstools (run \"ip a\" in ${#NODE_ARRAY[0]} to get all available NICs)" 1
   readVar app_dnstools_mac "$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1))" "Please entre the MAC address for this NIC" 1
   readVar app_dnstools_ip "" "Please entre the IP address for dnstools with subnet suffex (example: 10.99.0.60/24). Leave empty for DHCP" 1
+  export BRIDGE_NAME="cbr$app_dnstools_master_nic"
+  export APP_NAMESPACE="app-dnstools"
+  export MAC="$app_dnstools_mac"
   if [ "$app_dnstools_ip" != "" ]; then
     readVar app_dnstools_gw "10.99.0.1" "Please entre the gateway address for dnstools" 1
     readVar app_dnstools_dns1 "1.1.1.1" "Please entre DNS 1 for dnstools" 1
     readVar app_dnstools_dns2 "8.8.8.8" "Please entre DNS 2 for dnstools" 1
     echo "-- Deploying cbr1-$app_dnstools_master_nic NetworkAttachmentDefinition" >&3
-    cat <<EOF | kubectl create -f -
-apiVersion: "k8s.cni.cncf.io/v1"
-kind: NetworkAttachmentDefinition
-metadata:
-  name: dnstools-cni
-  namespace: app-dnstools
-spec:
-  config: '{
-      "cniVersion": "1.0.0",
-      "name": "cbr1-$app_dnstools_master_nic",
-      "type": "macvlan",
-      "isDefaultGateway": true,
-      "mode": "bridge",
-      "master": "$app_dnstools_master_nic",
-      "mac": "$app_dnstools_mac",
-      "ipam": {
-        "type": "static",
-        "addresses":
-        [
-          {
-            "address": "$app_dnstools_ip",
-            "gateway": "$app_dnstools_gw"
-          }
-        ],
-        "routes":
-        [
-          {
-            "dst": "0.0.0.0/0"
-          }
-        ]
-      },
-      "dns":
-      {
-        "nameservers":
-        [
-          "$app_dnstools_dns1",
-          "$app_dnstools_dns2"
-        ]
-      }
-    }'
-EOF
+    export IPCIDR="$app_dnstools_ip"
+    export GW="$app_dnstools_gw"
+    export DNS1="$app_dnstools_dns1"
+    export DNS2="$app_dnstools_dns2"
+    createNetworkAttachmentDefinition_STATIC
   else
     echo "-- Deploying cbr2-$app_dnstools_master_nic NetworkAttachmentDefinition" >&3
-    cat <<EOF | kubectl create -f -
-apiVersion: "k8s.cni.cncf.io/v1"
-kind: NetworkAttachmentDefinition
-metadata:
-  name: dnstools-cni
-  namespace: app-dnstools
-spec:
-  config: '{
-      "cniVersion": "1.0.0",
-      "name": "cbr2-$app_dnstools_master_nic",
-      "plugins": [
-        {
-          "cniVersion": "1.0.0",
-          "type": "macvlan",
-          "mode": "bridge",
-          "mac": "$app_dnstools_mac",
-          "master": "$app_dnstools_master_nic",
-          "isDefaultGateway": false,
-          "enableIPv6": true,
-          "ipam": {
-            "type": "dhcp"
-          }
-        }
-      ]
-    }'
-EOF
+    createNetworkAttachmentDefinition_DHCP
   fi
   echo "-- Running dnstools pod" >&3
   kubectl run -it --rm \
@@ -1305,100 +1371,30 @@ function step5() {
       if ! [[ $MAC =~ $MAC_REGEX ]]; then MAC="$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1))"; fi
       echo "csv raw $j -- $app_name: Using mac address: $MAC" >&3
       ip="$(echo $nw_address_with_subnet | cut -d'/' -f1)"
+      export BRIDGE_NAME
+      export APP_NAMESPACE
+      export MAC
       if [[ $ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         echo "csv raw $j -- $app_name: Adding STATIC IP ($nw_address_with_subnet) network configuration $nw_master_nic to the values .." >&3
-        kubectl delete network-attachment-definitions.k8s.cni.cncf.io "cbr1-$nw_master_nic" -n "$APP_NAMESPACE"
-        cat <<EOF | kubectl create -f -
-apiVersion: "k8s.cni.cncf.io/v1"
-kind: NetworkAttachmentDefinition
-metadata:
-  name: cbr1-$nw_master_nic
-  namespace: $APP_NAMESPACE
-spec:
-  config: '{
-      "cniVersion": "1.0.0",
-      "name": "cbr1-$nw_master_nic",
-      "type": "macvlan",
-      "isDefaultGateway": true,
-      "mode": "bridge",
-      "master": "$nw_master_nic",
-      "mac": "$MAC",
-      "ipam": {
-        "type": "static",
-        "addresses":
-        [
-          {
-            "address": "$nw_address_with_subnet",
-            "gateway": "$nw_gateway"
-          }
-        ],
-        "routes":
-        [
-          {
-            "dst": "0.0.0.0/0"
-          }
-        ]
-      },
-      "dns":
-      {
-        "nameservers":
-        [
-          "$nw_dns1",
-          "$nw_dns2"
-        ]
-      }
-    }'
-EOF
+        kubectl delete network-attachment-definitions.k8s.cni.cncf.io "$BRIDGE_NAME" -n "$APP_NAMESPACE"
+        export IPCIDR=$nw_address_with_subnet
+        export GW=$nw_gateway
+        export DNS1=$nw_dns1
+        export DNS2=$nw_dns2
+        createNetworkAttachmentDefinition_STATIC
         if [ "$NETWORK_ANNOTATION" == "" ]; then
-          NETWORK_ANNOTATION="cbr1-$nw_master_nic"
+          NETWORK_ANNOTATION="$BRIDGE_NAME"
         else
-          NETWORK_ANNOTATION+="\,cbr1-$nw_master_nic"
+          NETWORK_ANNOTATION+="\,$BRIDGE_NAME"
         fi
       else
         echo "csv raw $j -- $app_name: Adding DHCP ($MAC) network configuration $nw_master_nic to the values .." >&3
-        kubectl delete network-attachment-definitions.k8s.cni.cncf.io "cbr2-$nw_master_nic" -n "$APP_NAMESPACE"
-        cat <<EOF | kubectl create -f -
-apiVersion: "k8s.cni.cncf.io/v1"
-kind: NetworkAttachmentDefinition
-metadata:
-  name: cbr2-$nw_master_nic
-  namespace: $APP_NAMESPACE
-spec:
-  config: '{
-      "cniVersion": "1.0.0",
-      "name": "cbr2-$nw_master_nic",
-      "plugins": [
-        {
-          "cniVersion": "1.0.0",
-          "type": "macvlan",
-          "mode": "bridge",
-          "mac": "$MAC",
-          "master": "$nw_master_nic",
-          "isDefaultGateway": true,
-          "enableIPv6": false,
-          "ipam": {
-            "type": "dhcp",
-            "daemonSocketPath": "/run/cni/dhcp.sock",
-            "request": [
-              {
-                  "skipDefault": false
-              }
-            ],
-            "provide": [
-              {
-                "option": "host-name",
-                "fromArg": "k8s-$APP_NAMESPACE"
-              }
-            ]
-          }
-        }
-      ]
-    }'
-EOF
+        kubectl delete network-attachment-definitions.k8s.cni.cncf.io "$BRIDGE_NAME" -n "$APP_NAMESPACE"
+        createNetworkAttachmentDefinition_DHCP
         if [ "$NETWORK_ANNOTATION" == "" ]; then
-          NETWORK_ANNOTATION="cbr2-$nw_master_nic"
+          NETWORK_ANNOTATION="$BRIDGE_NAME"
         else
-          NETWORK_ANNOTATION+="\,cbr2-$nw_master_nic"
+          NETWORK_ANNOTATION+="\,$BRIDGE_NAME"
         fi
       fi
     fi
