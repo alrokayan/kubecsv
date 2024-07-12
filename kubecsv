@@ -491,7 +491,6 @@ function binInstall() {
     else
       echo "-- OS: Linux - CHECKING BINARIES" >&3
     fi
-    echo "-- OS: Linux" >&3
     if ! [ -f bin/helm ] || $forceinstallbin; then
       rm -f bin/helm
       curl -L https://get.helm.sh/helm-v3.15.2-linux-"$(dpkg --print-architecture)".tar.gz -o tmp/helm.tar.gz
@@ -524,7 +523,6 @@ function binInstall() {
     else
       echo "-- OS: macOS - CHECKING BINARIES" >&3
     fi
-    echo "-- OS: macOS" >&3
     if ! [ -f bin/helm ] || $forceinstallbin; then
       rm -f bin/helm
       curl -L "https://get.helm.sh/helm-v3.15.2-darwin-$(arch).tar.gz" -o tmp/helm.tar.gz
@@ -1168,7 +1166,7 @@ ____EOF____
       --set podCidr="${CLUSTER_CIDR_FIRST_TWO_OCTETS}.0.0/16" \
       --set flannel.backend="ipip" \
       --set flannel.directRouting=true \
-      --set flannel.backend="host-nw" \
+      --set flannel.backend="host-gw" \
       flannel/flannel
 
     for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
