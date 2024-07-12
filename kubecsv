@@ -491,6 +491,7 @@ function binInstall() {
     else
       echo "-- OS: Linux - CHECKING BINARIES" >&3
     fi
+    echo "-- OS: Linux" >&3
     if ! [ -f bin/helm ] || $forceinstallbin; then
       rm -f bin/helm
       curl -L https://get.helm.sh/helm-v3.15.2-linux-"$(dpkg --print-architecture)".tar.gz -o tmp/helm.tar.gz
@@ -523,6 +524,7 @@ function binInstall() {
     else
       echo "-- OS: macOS - CHECKING BINARIES" >&3
     fi
+    echo "-- OS: macOS" >&3
     if ! [ -f bin/helm ] || $forceinstallbin; then
       rm -f bin/helm
       curl -L "https://get.helm.sh/helm-v3.15.2-darwin-$(arch).tar.gz" -o tmp/helm.tar.gz
@@ -1160,12 +1162,13 @@ ____EOF____
     done
     wait
     echo "-- Deploying flannel" >&3
-     # https://github.com/flannel-io/flannel/blob/master/chart/kube-flannel/values.yaml
+    # https://github.com/flannel-io/flannel/blob/master/chart/kube-flannel/values.yaml
     helm upgrade --install flannel \
       --namespace kube-network --create-namespace \
       --set podCidr="${CLUSTER_CIDR_FIRST_TWO_OCTETS}.0.0/16" \
       --set flannel.backend="ipip" \
       --set flannel.directRouting=true \
+      --set flannel.backend="host-nw" \
       flannel/flannel
 
     for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
@@ -1192,6 +1195,12 @@ ____EOF____
                  --set CNIVersion="1.0.0"
     ARCH=$(ssh -i "$PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[0]}" bash '[ $(uname -m) = aarch64 ] && echo arm64 || echo amd64')
     echo "-- Deploying DHCP CNI plugin for $ARCH" >&3
+    helm upgrade  --install multus bitnami/multus-cni \
+                  --namespace kube-network --create-namespace \
+                  --set namespaceOverride="kube-network" \
+                  --set CNIVersion="1.0.0"
+    ARCH=$(ssh -i "$PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[0]}" bash '[ $(uname -m) = aarch64 ] && echo arm64 || echo amd64')
+    echo "-- Deploying DHCP CNI plugin for $ARCH" >&3
     cat <<EOF | kubectl create -f -
 ---
 apiVersion: apps/v1
@@ -1215,6 +1224,7 @@ spec:
     spec:
       hostNetwork: true
       nodeSelector:
+        kubernetes.io/arch: $ARCH
         kubernetes.io/arch: $ARCH
       tolerations:
       - operator: Exists
@@ -1261,7 +1271,6 @@ spec:
           hostPath:
             path: /run/netns
 EOF
-
     echo "-- Restarting CoreDNS" >&3
     kubectl delete pod --selector=k8s-app=kube-dns -n kube-system --grace-period=0 --force
     echo "-- waiting for flannel" >&3
