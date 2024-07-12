@@ -1152,11 +1152,12 @@ ____EOF____
     done
     wait
     echo "-- Deploying flannel" >&3
+     # https://github.com/flannel-io/flannel/blob/master/chart/kube-flannel/values.yaml
     helm upgrade --install flannel \
       --namespace kube-network --create-namespace \
       --set podCidr="${CLUSTER_CIDR_FIRST_TWO_OCTETS}.0.0/16" \
-      --set backend="ipip" \
-      --set directRouting=true \
+      --set flannel.backend="ipip" \
+      --set flannel.directRouting=true \
       flannel/flannel
 
     for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
@@ -1181,8 +1182,8 @@ ____EOF____
                  --namespace kube-network --create-namespace \
                  --set namespaceOverride="kube-network" \
                  --set CNIVersion="1.0.0"
-    ARCH="$( [ $(uname -m) = aarch64 ] && echo arm64 || echo amd64)"
-    echo "-- Deploying DHCP CNI plugin" >&3
+    ARCH=$(ssh -i "$PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[0]}" bash '[ $(uname -m) = aarch64 ] && echo arm64 || echo amd64')
+    echo "-- Deploying DHCP CNI plugin for $ARCH" >&3
     cat <<EOF | kubectl create -f -
 ---
 apiVersion: apps/v1
@@ -1206,11 +1207,10 @@ spec:
     spec:
       hostNetwork: true
       nodeSelector:
-        beta.kubernetes.io/arch: $ARCH
+        kubernetes.io/arch: $ARCH
       tolerations:
       - operator: Exists
         effect: NoSchedule
-      # serviceAccountName: dhcp
       initContainers:
       - name: clean-up
         image: busybox
