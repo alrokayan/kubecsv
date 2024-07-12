@@ -1,2 +1,0 @@
-app_name,helm_truechart,storage_name,storage_enabled,storage_path,storage_subPath,storage_server,storage_type,storage_mountPath,nw_master_nic,nw_mac,nw_address_with_subnet,nw_gateway,nw_dns1,nw_dns2,run_as_user,run_as_group,privileged,extra_helm_values
-home-assistant,home-assistant,config,true,/mnt/kube-volumes/home-assistant,config,10.0.0.1,nfs,/config,eth0,,10.99.0.55/24,10.99.0.1,10.99.0.1,1.1.1.1,0,0,true,--set cnpg.main.enabled=false --set configmap.init.enabled=false --set persistence.init.enabled=false --set workload.main.podSpec.initContainers.init.enabled=false

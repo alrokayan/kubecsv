@@ -9,11 +9,11 @@
 
 ### INPUT: `deploy.csv`
 ![homelab.csv.png](assets/images/csv/homelab.csv.png)
-*`deploy.csv` is a csv file as an input. Step `4` in the script will *autogenerate* one for you based on a set of questionnaires, also you can find several csv files as example in `examples` folder of this repo*
+*`deploy.csv` is an input csv file. Step `4` in the script will *autogenerate* one for you based on a set of questionnaires, also you can find several csv files as example in `examples` folder of this repo*
 
 ### OUTPUT: k8s
 ![homelab.csv.png](assets/images/results/homelab.csv.png)
-*That's the result after the deployment of `homelab.csv` file (the csv file must be renamed to `deploy.csv` and moved to the same directory where the `kubecsv` script is running)*
+*That's the result after the deployment of `homelab-dhcp.csv` or `homelab-static.csv` file (the csv file must be renamed to `deploy.csv` and moved to the same directory where the `kubecsv` script is running)*
 
 ---
 ## HOW TO CREATE A K8S CLUSTER AND DEPLOY APPS?
@@ -204,13 +204,13 @@ Mac or Linux as a local machine to run `kubecsv` shell script. Regarding the hos
 With this script you can deploy multiple home-assistant and multiple zigbee2mqtt and multiple mqtt brokers, each with a fix IP or dhcp-assigned IP in the same cluster. Storage is nfs for now.
 
 ![multi-home-assistant.csv.png](assets/images/csv/multi-home-assistant.csv.png)
-*A deployment csv file to deploy multiple home-assistant, multiple zigbee2mqtt, and multiple mqtt brokers with dhcp and static ip*
+*A deployment csv file to deploy multiple home-assistant, multiple zigbee2mqtt, and multiple mqtt brokers on multiple network interfaces with dhcp and/or static ip*
 
 ![multi-home-assistant.csv.png](assets/images/csv-edit/multi-home-assistant.csv.png)
 *That's how the csv file looks like opening it with janisdd.vscode-edit-csv*
 
 ![multi-home-assistant.csv.png](assets/images/results/multi-home-assistant.csv.png)
-*That's the result after deployment of multi-home-assistant.csv file*
+*That's the result after deployment of `multi-home-assistant-dhcp.csv` or `multi-home-assistant-static.csv` file*
 
 ### 2. Homelab
 The script takes a reading from [TrueCharts helm charts](https://truecharts.org/charts/description-list/) and deploy them. You can set static IP or dhcp IP with fixed MAC address all within the csv file.
@@ -222,7 +222,7 @@ The script takes a reading from [TrueCharts helm charts](https://truecharts.org/
 *That's how the csv file looks like opening it with janisdd.vscode-edit-csv*
 
 ![homelab.csv.png](assets/images/results/homelab.csv.png)
-*That's the result after deployment of homelab.csv file*
+*That's the result after deployment of `homelab-dhcp.csv` or `homelab-static.csv` file*
 
 ---
 ## USEFUL LINKS:
