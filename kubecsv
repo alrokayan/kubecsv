@@ -1164,8 +1164,6 @@ ____EOF____
     helm upgrade --install flannel \
       --namespace kube-network --create-namespace \
       --set podCidr="${CLUSTER_CIDR_FIRST_TWO_OCTETS}.0.0/16" \
-      --set flannel.backend="ipip" \
-      --set flannel.directRouting=true \
       --set flannel.backend="host-gw" \
       flannel/flannel
 
