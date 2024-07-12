@@ -357,6 +357,12 @@ spec:
       ]
     }'
 EOF
+  ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}" DEBIAN_FRONTEND="noninteractive" "bash -s" <<'____EOF____'
+#!/bin/bash
+ip link show type bridge
+ip link show type veth
+bridge link show
+____EOF____
 }
 
 #######################################
@@ -414,6 +420,12 @@ spec:
       ]
     }'
 EOF
+  ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}" DEBIAN_FRONTEND="noninteractive" "bash -s" <<'____EOF____'
+#!/bin/bash
+ip link show type bridge
+ip link show type veth
+bridge link show
+____EOF____
 }
 
 #######################################
@@ -502,16 +514,19 @@ function binInstall() {
       curl -L https://get.helm.sh/helm-v3.15.2-linux-"$(dpkg --print-architecture)".tar.gz -o tmp/helm.tar.gz
       tar -zxf tmp/helm.tar.gz -C tmp
       mv tmp/linux-"$(dpkg --print-architecture)"/helm bin/
+      chmod +x bin/helm
       if [ "$(which helm)" == "$(pwd)/bin/helm" ]; then echo "-- bin/helm installed successfully" >&3; fi
     fi
     if ! [ -f bin/kubectl ] || $forceinstallbin; then
       rm -f bin/kubectl
       curl -L "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$(dpkg --print-architecture)/kubectl" -o bin/kubectl
+      chmod +x bin/kubectl
       if [ "$(which kubectl)" == "$(pwd)/bin/kubectl" ]; then echo "-- bin/kubectl installed successfully" >&3; fi
     fi
     if ! [ -f bin/jq ] || $forceinstallbin; then
       rm -f bin/jq
       curl -L "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-$(dpkg --print-architecture)" -o bin/jq
+      chmod +x bin/jq
       if [ "$(which jq)" == "$(pwd)/bin/jq" ]; then echo "-- bin/jq installed successfully" >&3; fi
     fi
     if ! [ -f bin/k9s ] || $forceinstallbin; then
@@ -520,6 +535,7 @@ function binInstall() {
       mkdir tmp/k9s
       tar -zxf tmp/k9s.tar.gz -C tmp/k9s
       mv tmp/k9s/k9s bin/
+      chmod +x bin/k9s
       if [ "$(which k9s)" == "$(pwd)/bin/k9s" ]; then echo "-- bin/k9s installed successfully" >&3; fi
     fi
   fi
@@ -534,16 +550,19 @@ function binInstall() {
       curl -L "https://get.helm.sh/helm-v3.15.2-darwin-$(arch).tar.gz" -o tmp/helm.tar.gz
       tar -zxf tmp/helm.tar.gz -C tmp
       mv tmp/darwin-"$(arch)"/helm bin/
+      chmod +x bin/helm
       if [ "$(which helm)" == "$(pwd)/bin/helm" ]; then echo "-- bin/helm installed successfully" >&3; fi
     fi
     if ! [ -f bin/kubectl ] || $forceinstallbin; then
       rm -f bin/kubectl
       curl -L "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/darwin/$(arch)/kubectl" -o bin/kubectl
+      chmod +x bin/kubectl
       if [ "$(which kubectl)" == "$(pwd)/bin/kubectl" ]; then echo "-- bin/kubectl installed successfully" >&3; fi
     fi
     if ! [ -f bin/jq ] || $forceinstallbin; then
       rm -f bin/jq
       curl -L "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-macos-$(arch)" -o bin/jq
+      chmod +x bin/jq
       if [ "$(which jq)" == "$(pwd)/bin/jq" ]; then echo "-- bin/jq installed successfully" >&3; fi
     fi
     if ! [ -f bin/k9s ] || $forceinstallbin; then
@@ -552,6 +571,7 @@ function binInstall() {
       mkdir tmp/k9s
       tar -zxf tmp/k9s.tar.gz -C tmp/k9s
       mv tmp/k9s/k9s bin/
+      chmod +x bin/k9s
       if [ "$(which k9s)" == "$(pwd)/bin/k9s" ]; then echo "-- bin/k9s installed successfully" >&3; fi
     fi
   fi
