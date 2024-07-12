@@ -634,7 +634,13 @@ function unD() {
     echo "-- apps uninstalled (kube-network skipped)" >&3
   else
     echo "-- Uninstalling Multus" >&3
-    helm uninstall Multus -n kube-network &
+    if ! [ -f tmp/multus-daemonset-thick.yml ]; then
+      curl --silent -fsSL https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/deployments/multus-daemonset-thick.yml -o tmp/multus-daemonset-thick.yml
+      sed -i.BACKUP 's/namespace: kube-system/namespace: kube-network/g' tmp/multus-daemonset-thick.yml
+      sed -i.BACKUP "s/        \"cniVersion\": \".*/        \"cniVersion\": \"1.0.0\",/g" tmp/multus-daemonset-thick.yml
+    fi
+    kubectl delete -n kube-network -f tmp/multus-daemonset-thick.yml --grace-period=0 --force
+    # helm uninstall Multus -n kube-network &
     echo "-- Uninstalling Flannel" >&3
     helm uninstall flannel -n kube-network &
     ns="kube-network"
@@ -1165,6 +1171,7 @@ ____EOF____
       ) &
     done
     wait
+
     echo "-- Deploying flannel with backend $FLANNEL_BACKEND (You can change it from the .env file)" >&3
     # https://github.com/flannel-io/flannel/blob/master/chart/kube-flannel/values.yaml
     helm upgrade --install flannel \
@@ -1173,6 +1180,15 @@ ____EOF____
       --set flannel.backend="$FLANNEL_BACKEND" \
       --set flannel.directRouting=$FLANNEL_DIRECTROUTING \
       flannel/flannel
+
+    echo "-- Deploying Multus" >&3
+    rm -f tmp/multus-daemonset-thick.yml
+    curl --silent -fsSL https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/deployments/multus-daemonset-thick.yml -o tmp/multus-daemonset-thick.yml
+    sed -i.BACKUP 's/namespace: kube-system/namespace: kube-network/g' tmp/multus-daemonset-thick.yml
+    kubectl apply -n kube-network -f tmp/multus-daemonset-thick.yml
+    
+    echo "-- Deploying DHCP CNI plugin for $ARCH" >&3
+    kubectl create -f https://raw.githubusercontent.com/k8snetworkplumbingwg/reference-deployment/master/multus-dhcp/dhcp-daemonset.yml
 
     for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
       (
@@ -1191,83 +1207,6 @@ ____EOF____
     done
     wait
 
-    echo "-- Deploying DHCP CNI plugin for $ARCH" >&3
-    helm upgrade  --install multus bitnami/multus-cni \
-                  --namespace kube-network --create-namespace \
-                  --set namespaceOverride="kube-network" \
-                  --set CNIVersion="1.0.0"
-    ARCH=$(ssh -i "$PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[0]}" bash '[ $(uname -m) = aarch64 ] && echo arm64 || echo amd64')
-    echo "-- Deploying DHCP CNI plugin for $ARCH" >&3
-    cat <<EOF | kubectl create -f -
----
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: kube-dhcp-ds-$ARCH
-  namespace: kube-network
-  labels:
-    tier: node
-    app: dhcp
-spec:
-  selector:
-    matchLabels:
-      tier: node
-      app: dhcp
-  template:
-    metadata:
-      labels:
-        tier: node
-        app: dhcp
-    spec:
-      hostNetwork: true
-      nodeSelector:
-        kubernetes.io/arch: $ARCH
-        kubernetes.io/arch: $ARCH
-      tolerations:
-      - operator: Exists
-        effect: NoSchedule
-      initContainers:
-      - name: clean-up
-        image: busybox
-        command: ["/bin/sh"]
-        args: ["-c", "rm -f /host/run/cni/dhcp.sock"]
-        securityContext:
-          privileged: true
-        volumeMounts:
-        - name: socketpath
-          mountPath: /host/run/cni
-      containers:
-      - name: kube-dhcp
-        # Based on: https://github.com/k8snetworkplumbingwg/reference-deployment/blob/master/multus-dhcp/Dockerfile
-        image: quay.io/aneeshkp/cni-dhcp-daemon:latest
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "50Mi"
-          limits:
-            cpu: "100m"
-            memory: "50Mi"
-        securityContext:
-          privileged: true
-        volumeMounts:
-        - name: socketpath
-          mountPath: /host/run/cni
-        - name: procpath
-          mountPath: /host/proc
-        - name: netnspath
-          mountPath: /host/var/run/netns
-          mountPropagation: HostToContainer
-      volumes:
-        - name: socketpath
-          hostPath:
-            path: /run/cni
-        - name: procpath
-          hostPath:
-            path: /proc
-        - name: netnspath
-          hostPath:
-            path: /run/netns
-EOF
     echo "-- Restarting CoreDNS" >&3
     kubectl delete pod --selector=k8s-app=kube-dns -n kube-system --grace-period=0 --force
     echo "-- waiting for flannel" >&3
