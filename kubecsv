@@ -786,7 +786,7 @@ function step0() {
     done
   fi
 
-  echo "-- Uninstalling (inc. reset kubeadm, firewall, files, NICs) on all nodes" >&3
+  echo "-- Uninstalling (reset kubeadm, firewall, files, network) on all nodes" >&3
   for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
     (
       ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
