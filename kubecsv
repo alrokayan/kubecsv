@@ -486,7 +486,11 @@ function runDNSTool() {
 function binInstall() {
   forceinstallbin=$1
   if [[ "$(uname -s)" == *"Linux"* ]]; then
-    echo "-- OS: Linux - CHECKING BINARIES" >&3
+    if $forceinstallbin; then
+      echo "-- OS: Linux - DOWNLOADING BINARIES" >&3
+    else
+      echo "-- OS: Linux - CHECKING BINARIES" >&3
+    fi
     if ! [ -f bin/helm ] || $forceinstallbin; then
       rm -f bin/helm
       curl -L https://get.helm.sh/helm-v3.15.2-linux-"$(dpkg --print-architecture)".tar.gz -o tmp/helm.tar.gz
@@ -514,7 +518,11 @@ function binInstall() {
     fi
   fi
   if [[ "$(uname -s)" == *"Darwin"* ]]; then
-    echo "-- OS: MacOS" >&3
+    if $forceinstallbin; then
+      echo "-- OS: macOS - DOWNLOADING BINARIES" >&3
+    else
+      echo "-- OS: macOS - CHECKING BINARIES" >&3
+    fi
     if ! [ -f bin/helm ] || $forceinstallbin; then
       rm -f bin/helm
       curl -L "https://get.helm.sh/helm-v3.15.2-darwin-$(arch).tar.gz" -o tmp/helm.tar.gz
