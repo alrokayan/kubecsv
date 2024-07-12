@@ -1289,7 +1289,7 @@ EOF
     ( helm upgrade --install prometheus-operator oci://tccr.io/truecharts/prometheus-operator --namespace=kube-network ) &
     # DEFAULT VALUES: https://github.com/kubernetes-sigs/metrics-server/blob/master/charts/metrics-server/values.yaml
     ( helm upgrade --install metrics-server metrics-server/metrics-server --set args="{--kubelet-insecure-tls,--kubelet-preferred-address-types=InternalIP,--cert-dir=/tmp}" --set apiService.insecureSkipTLSVerify=true --namespace=kube-network ) &
-    wait
+
   else
     echo "Please do step 2 before kubernetes cluster is not installed .." >&3
   fi
