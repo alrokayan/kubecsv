@@ -1164,7 +1164,7 @@ ____EOF____
     helm upgrade --install flannel \
       --namespace kube-network --create-namespace \
       --set podCidr="${CLUSTER_CIDR_FIRST_TWO_OCTETS}.0.0/16" \
-      --set flannel.backend="host-gw" \
+      --set flannel.backend="vxlan" \
       flannel/flannel
 
     for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
