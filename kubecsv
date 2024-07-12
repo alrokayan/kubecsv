@@ -855,7 +855,7 @@ apt autoclean -y
 apt clean -y 
 
 echo "-- $HOSTNAME: deleting leftover NICs"
-for nic in $(ip link show | grep -e lxc -e cali -e cilium -e flannel -e tunl -e enx -e cni -e cbr | awk -F@ '{print $1}' | awk '{print $2}'); do
+for nic in $(ip link show | grep -e lxc -e cali -e cilium -e flannel -e tunl -e cni -e cbr | awk -F@ '{print $1}' | awk '{print $2}'); do
   ip link set $nic down
   ip link delete $nic
 done
