@@ -23,6 +23,12 @@ trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 trap "echo 'ERROR: An error occurred during execution, check log $LOG_FILE for details.' >&3"
 touch .env
 export PATH="$(pwd)/bin:$PATH"
+if ! cat .env | grep "export FLANNEL_BACKEND="; then
+  echo 'export FLANNEL_BACKEND="host-gw"' >> .env
+fi
+if ! cat .env | grep "export FLANNEL_DIRECTROUTING="; then
+  echo 'export FLANNEL_DIRECTROUTING=false' >> .env
+fi
 if ! cat .env | grep "export SSH_EXTRA_ARGS="; then
   echo 'export SSH_EXTRA_ARGS="-o StrictHostKeyChecking=no"' >> .env
 fi
@@ -1159,12 +1165,13 @@ ____EOF____
       ) &
     done
     wait
-    echo "-- Deploying flannel" >&3
+    echo "-- Deploying flannel with backend $FLANNEL_BACKEND (You can change it from the .env file)" >&3
     # https://github.com/flannel-io/flannel/blob/master/chart/kube-flannel/values.yaml
     helm upgrade --install flannel \
       --namespace kube-network --create-namespace \
       --set podCidr="${CLUSTER_CIDR_FIRST_TWO_OCTETS}.0.0/16" \
-      --set flannel.backend="host-gw" \
+      --set flannel.backend="$FLANNEL_BACKEND" \
+      --set flannel.directRouting=$FLANNEL_DIRECTROUTING \
       flannel/flannel
 
     for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
