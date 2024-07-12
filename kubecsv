@@ -1186,12 +1186,6 @@ ____EOF____
     done
     wait
 
-    echo "-- Deploying multus" >&3
-    helm upgrade --install multus bitnami/multus-cni \
-                 --namespace kube-network --create-namespace \
-                 --set namespaceOverride="kube-network" \
-                 --set CNIVersion="1.0.0"
-    ARCH=$(ssh -i "$PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[0]}" bash '[ $(uname -m) = aarch64 ] && echo arm64 || echo amd64')
     echo "-- Deploying DHCP CNI plugin for $ARCH" >&3
     helm upgrade  --install multus bitnami/multus-cni \
                   --namespace kube-network --create-namespace \
