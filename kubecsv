@@ -261,7 +261,7 @@ function RESTART_ALL_NODES() {
   wait
   echo "-- Rebooting ${NODE_ARRAY[0]}"
   ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}" "reboot"
-  sleep 5
+  sleep 10
   WAIT_ALL_NODES_ONLINE
 }
 
