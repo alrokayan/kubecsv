@@ -1549,7 +1549,6 @@ while $CONTINUE; do
   all)
     step0
     echo "-- Step 0 (apt uninstall) completed" >&3
-    RESTART_ALL_NODES
     step1
     echo "-- Step 1 (apt install) completed" >&3
     step2
