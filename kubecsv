@@ -509,7 +509,7 @@ function binInstall() {
     else
       echo "-- OS: Linux - CHECKING BINARIES" >&3
     fi
-    if ! [ -f bin/helm ] || $forceinstallbin; then
+    if ! command -v helm &> /dev/null || ! [ -f bin/helm ] || $forceinstallbin; then
       rm -f bin/helm
       curl -L https://get.helm.sh/helm-v3.15.2-linux-"$(dpkg --print-architecture)".tar.gz -o tmp/helm.tar.gz
       tar -zxf tmp/helm.tar.gz -C tmp
@@ -517,19 +517,19 @@ function binInstall() {
       chmod +x bin/helm
       if [ "$(which helm)" == "$(pwd)/bin/helm" ]; then echo "-- bin/helm installed successfully" >&3; fi
     fi
-    if ! [ -f bin/kubectl ] || $forceinstallbin; then
+    if ! command -v kubectl &> /dev/null || ! [ -f bin/kubectl ] || $forceinstallbin; then
       rm -f bin/kubectl
       curl -L "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$(dpkg --print-architecture)/kubectl" -o bin/kubectl
       chmod +x bin/kubectl
       if [ "$(which kubectl)" == "$(pwd)/bin/kubectl" ]; then echo "-- bin/kubectl installed successfully" >&3; fi
     fi
-    if ! [ -f bin/jq ] || $forceinstallbin; then
+    if ! command -v jq &> /dev/null || ! [ -f bin/jq ] || $forceinstallbin; then
       rm -f bin/jq
       curl -L "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-$(dpkg --print-architecture)" -o bin/jq
       chmod +x bin/jq
       if [ "$(which jq)" == "$(pwd)/bin/jq" ]; then echo "-- bin/jq installed successfully" >&3; fi
     fi
-    if ! [ -f bin/k9s ] || $forceinstallbin; then
+    if ! command -v k9s &> /dev/null || ! [ -f bin/k9s ] || $forceinstallbin; then
       rm -f bin/k9s
       curl -L https://github.com/derailed/k9s/releases/download/v0.32.5/k9s_Linux_"$(dpkg --print-architecture)".tar.gz -o tmp/k9s.tar.gz
       mkdir tmp/k9s
@@ -545,7 +545,7 @@ function binInstall() {
     else
       echo "-- OS: macOS - CHECKING BINARIES" >&3
     fi
-    if ! [ -f bin/helm ] || $forceinstallbin; then
+    if ! command -v helm &> /dev/null || ! [ -f bin/helm ] || $forceinstallbin; then
       rm -f bin/helm
       curl -L "https://get.helm.sh/helm-v3.15.2-darwin-$(arch).tar.gz" -o tmp/helm.tar.gz
       tar -zxf tmp/helm.tar.gz -C tmp
@@ -553,19 +553,19 @@ function binInstall() {
       chmod +x bin/helm
       if [ "$(which helm)" == "$(pwd)/bin/helm" ]; then echo "-- bin/helm installed successfully" >&3; fi
     fi
-    if ! [ -f bin/kubectl ] || $forceinstallbin; then
+    if ! command -v kubectl &> /dev/null || ! [ -f bin/kubectl ] || $forceinstallbin; then
       rm -f bin/kubectl
       curl -L "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/darwin/$(arch)/kubectl" -o bin/kubectl
       chmod +x bin/kubectl
       if [ "$(which kubectl)" == "$(pwd)/bin/kubectl" ]; then echo "-- bin/kubectl installed successfully" >&3; fi
     fi
-    if ! [ -f bin/jq ] || $forceinstallbin; then
+    if ! command -v jq &> /dev/null || ! [ -f bin/jq ] || $forceinstallbin; then
       rm -f bin/jq
       curl -L "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-macos-$(arch)" -o bin/jq
       chmod +x bin/jq
       if [ "$(which jq)" == "$(pwd)/bin/jq" ]; then echo "-- bin/jq installed successfully" >&3; fi
     fi
-    if ! [ -f bin/k9s ] || $forceinstallbin; then
+    if ! command -v k9s &> /dev/null || ! [ -f bin/k9s ] || $forceinstallbin; then
       rm -f bin/k9s
       curl -L h"ttps://github.com/derailed/k9s/releases/download/v0.32.5/k9s_Darwin_$(arch).tar.gz" -o tmp/k9s.tar.gz
       mkdir tmp/k9s
@@ -657,11 +657,17 @@ function unD() {
     if ! [ -f tmp/multus-daemonset-thick.yml ]; then
       curl --silent -fsSL https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/deployments/multus-daemonset-thick.yml -o tmp/multus-daemonset-thick.yml
       sed -i.BACKUP 's/namespace: kube-system/namespace: kube-network/g' tmp/multus-daemonset-thick.yml
-      sed -i.BACKUP "s/        \"cniVersion\": \".*/        \"cniVersion\": \"1.0.0\",/g" tmp/multus-daemonset-thick.yml
     fi
     kubectl delete -n kube-network -f tmp/multus-daemonset-thick.yml --grace-period=0 --force
-    # helm uninstall Multus -n kube-network &
-    echo "-- Uninstalling Flannel" >&3
+
+    echo "-- Uninstalling DHCP" >&3
+    if ! [ -f tmp/dhcp-daemonset.yml ]; then
+      curl --silent -fsSL https://raw.githubusercontent.com/k8snetworkplumbingwg/reference-deployment/master/multus-dhcp/dhcp-daemonset.yml -o tmp/dhcp-daemonset.yml
+      sed -i.BACKUP 's/namespace: kube-system/namespace: kube-network/g' tmp/dhcp-daemonset.yml
+    fi
+    kubectl delete -n kube-network -f tmp/dhcp-daemonset.yml --grace-period=0 --force
+
+    echo "-- Uninstalling flannel" >&3
     helm uninstall flannel -n kube-network &
     ns="kube-network"
     echo "-- Uninstalling all resources in $ns " >&3
@@ -1207,8 +1213,10 @@ ____EOF____
     sed -i.BACKUP 's/namespace: kube-system/namespace: kube-network/g' tmp/multus-daemonset-thick.yml
     kubectl apply -n kube-network -f tmp/multus-daemonset-thick.yml
     
-    echo "-- Deploying DHCP CNI plugin for $ARCH" >&3
-    kubectl create -f https://raw.githubusercontent.com/k8snetworkplumbingwg/reference-deployment/master/multus-dhcp/dhcp-daemonset.yml
+    echo "-- Deploying DHCP CNI plugin" >&3 -broadcast=true
+    curl --silent -fsSL https://raw.githubusercontent.com/k8snetworkplumbingwg/reference-deployment/master/multus-dhcp/dhcp-daemonset.yml -o tmp/dhcp-daemonset.yml
+    sed -i.BACKUP 's/namespace: kube-system/namespace: kube-network/g' tmp/dhcp-daemonset.yml
+    kubectl apply -n kube-network -f tmp/dhcp-daemonset.yml
 
     for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
       (
@@ -1534,6 +1542,7 @@ while $CONTINUE; do
   all)
     step0
     echo "-- Step 0 (apt uninstall) completed" >&3
+    RESTART_ALL_NODES
     step1
     echo "-- Step 1 (apt install) completed" >&3
     step2
