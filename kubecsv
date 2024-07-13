@@ -903,6 +903,7 @@ ____EOF____
     ) &
   done
   wait
+  echo "---------------------------------------------------------------" >&3
 }
 
 ##################################################################################
@@ -1069,6 +1070,7 @@ ____EOF____
     ) &
   done
   wait
+  echo "---------------------------------------------------------------" >&3
 }
 
 ##################################################################################
@@ -1145,6 +1147,7 @@ ____EOF____
     ) &
   done
   wait
+  echo "---------------------------------------------------------------" >&3
 }
 
 ##################################################################################
@@ -1259,6 +1262,7 @@ ____EOF____
   else
     echo "Please do step 2 before kubernetes cluster is not installed .." >&3
   fi
+  echo "---------------------------------------------------------------" >&3
 }
 
 ##################################################################################
@@ -1275,6 +1279,7 @@ function step4() {
     deployFileCreation
     echo "-- deploy.csv has been created" >&3
   fi
+  echo "---------------------------------------------------------------" >&3
 }
 
 ##################################################################################
@@ -1326,10 +1331,9 @@ function step5() {
       export BRIDGE_NAME=cbr-$nw_master_nic
       export APP_NAMESPACE
       export MAC
-      echo "csv raw $j -- $app_name: Using mac address: $MAC" >&3
       ip="$(echo $nw_address_with_subnet | cut -d'/' -f1)"
       if [[ $ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        echo "csv raw $j -- $app_name: Adding STATIC IP ($nw_address_with_subnet) network configuration $nw_master_nic to the values .." >&3
+        echo "csv raw $j -- $app_name: Adding STATIC IP ($nw_address_with_subnet) ($MAC) network configuration $nw_master_nic to the values .." >&3
         kubectl delete network-attachment-definitions.k8s.cni.cncf.io "$BRIDGE_NAME" -n "$APP_NAMESPACE"
         export IPCIDR=$nw_address_with_subnet
         export GW=$nw_gateway
@@ -1371,6 +1375,7 @@ function step5() {
     j=$(($j + 1))
   done < <(tail -n +2 deploy.csv)
   deployAPP
+  echo "---------------------------------------------------------------" >&3
 }
 
 ##################################################################################
@@ -1393,8 +1398,10 @@ echo "KUBECONFIG: $KUBECONFIG" >&3
 echo "SSH KEYS: $PRIVATE_KEY"  >&3
 echo "kubectl bin: $(which kubectl)"  >&3
 echo "---------------------------------------------------------------" >&3
-echo "Please answer the following questions to create the environment" >&3
-echo "---------------------------------------------------------------" >&3
+if [ -z "$NODE_ARRAY" ] || [ -z "$SSH_USERNAME" ] || [ -z "$PRIVATE_KEY" ] || [ -z "$KUBECONFIG" ] || [ -z "$CLUSTER_CIDR_FIRST_TWO_OCTETS" ] || [ -z "$KUBE_TZ" ] || [ -z "$INC_MASTER" ]; then
+  echo "Please answer the following questions to create the environment" >&3
+  echo "---------------------------------------------------------------" >&3
+fi
 while ! IS_ALL_NODES_ONLINE; do
   . .env
   readArrayVar NODE_ARRAY "Please entre kubernetes cluster's nodes IP addresses the first one is the master (seperate IPs with SPACE)" "$(IFS=' ' ; echo "$NODE_ARRAY_DEFAULT" )"
