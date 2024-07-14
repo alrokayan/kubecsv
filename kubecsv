@@ -1410,8 +1410,8 @@ readVar SSH_USERNAME "$SSH_USERNAME_DEFAULT" "Please entre the SSH username" 1
 while [ ! -f "$PRIVATE_KEY" ]; do
   PRIVATE_KEY="$PRIVATE_KEY_DEFAULT"
   readVar PRIVATE_KEY "$PRIVATE_KEY_DEFAULT" "Please enter the absolute path for your private key. It will be created if does not exist. The default value is recommended"
+  sshCopyID
 done
-sshCopyID
 if [ ! -f "$KUBECONFIG" ]; then
   KUBECONFIG="$KUBECONFIG_DEFAULT"
   readVar KUBECONFIG "$KUBECONFIG_DEFAULT" "Please entre the path for KUBECONFIG"
