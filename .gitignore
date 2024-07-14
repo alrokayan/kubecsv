@@ -8,3 +8,4 @@ bin
 .env
 kubeconfig
 .nfs*
+NOTES.md
