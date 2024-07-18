@@ -51,6 +51,8 @@ export CSV_LARGENFSPATH_DEFAULT="/mnt/hdd"
 export CSV_IP_DEFAULT=10.99.0.50
 export CSV_CIDR_DEFAULT=24
 export CSV_GW_DEFAULT=10.99.0.1
+export CSV_DNS1_DEFAULT=1.1.1.1
+export CSV_DNS2_DEFAULT=8.8.8.8
 
 #######################################
 #######################################
@@ -208,8 +210,8 @@ function deployFileCreation() {
     if [ "$CSV_IP" == "" ]; then CSV_IP=$CSV_IP_DEFAULT; fi
     if [ "$CSV_CIDR" == "" ]; then CSV_CIDR=$CSV_CIDR_DEFAULT; fi
     if [ "$CSV_GW" == "" ]; then CSV_GW=$CSV_GW_DEFAULT; fi
-    if [ "$CSV_DNS1" == "" ]; then CSV_DNS1=$DNS1; fi
-    if [ "$CSV_DNS2" == "" ]; then CSV_DNS2=$DNS2; fi
+    if [ "$CSV_DNS1" == "" ]; then CSV_DNS1=$CSV_DNS1_DEFAULT; fi
+    if [ "$CSV_DNS2" == "" ]; then CSV_DNS2=$CSV_DNS2_DEFAULT; fi
     cat <<EOF >deploy.csv
 app_name,helm_truechart,storage_name,storage_enabled,storage_path,storage_subPath,storage_server,storage_type,storage_mountPath,nw_master_nic,nw_mac,nw_address_with_subnet,nw_gateway,nw_dns1,nw_dns2,run_as_user,run_as_group,privileged,extra_helm_values
 plex,plex,config,true,$CSV_NFSPATH/plex,config,$CSV_NFSSERVER,nfs,/config,,,,,,,,,,
@@ -657,7 +659,7 @@ ____EOF____
 #######################################
 function setDNS1() {
   COREDNS_POD_NAME1=$(kubectl get pod -l k8s-app=kube-dns -n kube-system --no-headers=true | awk 'NR==1{print $1}')
-  DNS1=$(kubectl get pod "$COREDNS_POD_NAME1" -n kube-system --template '{{.status.podIP}}')
+  COREDNS_DNS1=$(kubectl get pod "$COREDNS_POD_NAME1" -n kube-system --template '{{.status.podIP}}')
 }
 
 #######################################
@@ -667,7 +669,7 @@ function setDNS1() {
 #######################################
 function setDNS2() {
   COREDNS_POD_NAME2=$(kubectl get pod -l k8s-app=kube-dns -n kube-system --no-headers=true | awk 'NR==2{print $1}')
-  DNS2=$(kubectl get pod "$COREDNS_POD_NAME2" -n kube-system --template '{{.status.podIP}}')
+  COREDNS_DNS2=$(kubectl get pod "$COREDNS_POD_NAME2" -n kube-system --template '{{.status.podIP}}')
 }
 
 #######################################
@@ -679,21 +681,21 @@ function FixDNS() {
   echo "-- Fixing CoreDNS IP addresses in kubelet config " >&3
   setDNS1
   setDNS2
-  echo "-- CoreDNS IP1: $DNS1" >&3
-  echo "-- CoreDNS IP2: $DNS2" >&3
-  ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}" DEBIAN_FRONTEND="noninteractive" i="$i" DNS1="$DNS1" DNS2="$DNS2" "bash -s" <<'____EOF____'
+  echo "-- CoreDNS IP1: $COREDNS_DNS1" >&3
+  echo "-- CoreDNS IP2: $COREDNS_DNS2" >&3
+  ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}" DEBIAN_FRONTEND="noninteractive" i="$i" COREDNS_DNS1="$COREDNS_DNS1" COREDNS_DNS2="$COREDNS_DNS2" "bash -s" <<'____EOF____'
 #!/bin/bash
-if [ "$DNS1" != "<no value>" ]; then
+if [ "$COREDNS_DNS1" != "<no value>" ]; then
   mkdir -p /var/lib/kubelet/kubeletconfigurationpatches
-  if [ "$DNS2" != "<no value>" ]; then
+  if [ "$COREDNS_DNS2" != "<no value>" ]; then
     echo "clusterDNS:
-- $DNS1
-- $DNS2
+- $COREDNS_DNS1
+- $COREDNS_DNS2
 clusterDomain: cluster.local
 resolvConf: /etc/resolv.conf" > '/var/lib/kubelet/kubeletconfigurationpatches/kubeletconfiguration0+merge.yaml'
   else
     echo "clusterDNS:
-- $DNS1
+- $COREDNS_DNS1
 clusterDomain: cluster.local
 resolvConf: /etc/resolv.conf" > '/var/lib/kubelet/kubeletconfigurationpatches/kubeletconfiguration0+merge.yaml'
   fi
@@ -701,7 +703,6 @@ fi
 echo "-- $HOSTNAME: Upgrading kubelet configuration"
 kubeadm upgrade node phase kubelet-config --patches /var/lib/kubelet/kubeletconfigurationpatches/
 ____EOF____
-  FixFlannel
 }
 
 #######################################
@@ -966,12 +967,6 @@ for nic in $(ip link show | grep -e lxc -e cali -e cilium -e flannel -e tunl -e 
   ip link delete $nic
 done
 
-echo "-- $HOSTNAME: relinking /etc/resolv.conf"
-rm -f /etc/resolv.conf
-ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
-resolvectl flush-caches 
-systemctl restart systemd-resolved
-
 echo "-- $HOSTNAME: Uninstall Completed"
 ____EOF____
     ) &
@@ -1009,7 +1004,7 @@ ff02::2 ip6-allrouters' >>tmp/hosts
   for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
     (
       IP=${NODE_ARRAY[$i]}
-      ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" DEBIAN_FRONTEND="noninteractive" i="$i" DNS1="$DNS1" DNS2="$DNS2" "bash -s" <<'____EOF____'
+      ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
 #!/bin/bash
 echo "-- $HOSTNAME: Creating folders and setting permissions"
 mkdir -p ~/.kube
@@ -1083,16 +1078,6 @@ update-grub
 sysctl --system 
 echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 apt-get install -y -q
-
-echo "-- $HOSTNAME: Fixing local DNS"
-rm -f /etc/resolv.conf
-cat <<EOF > /etc/resolv.conf
-nameserver $DNS1
-nameserver $DNS2
-search home
-EOF
-resolvectl flush-caches 
-systemctl restart systemd-resolved
 
 echo "-- $HOSTNAME: Installing gpg for jave (adoptium) and kubernetes"
 mkdir -p -m 755 /etc/apt/keyrings
@@ -1421,10 +1406,21 @@ function step5() {
         else
           NETWORK_ANNOTATION+=",{\"name\": \"$BRIDGE_NAME\"\,\"default-route\": [\"$GW\"]}"
         fi
+        if [ "$DNS1" == "" ]; then setDNS1; DNS1=$COREDNS_DNS1; fi
+        if [ "$DNS2" == "" ]; then setDNS2; DNS2=$COREDNS_DNS2; fi
       fi
       if [ "$DNS1" != "" ] || [ "$DNS2" != "" ]; then
         echo "csv raw $j -- $app_name: Adding dnsPolicy=ClusterFirstWithHostNet to the values .." >&3
+        VALUES+="--set workload.main.podSpec.dnsPolicy=ClusterFirstWithHostNet "
         VALUES+="--set podOptions.dnsPolicy=ClusterFirstWithHostNet "
+        if [ "$DNS1" != "" ]; then
+          echo "csv raw $j -- $app_name: Adding DNS1=$DNS1 to the values .." >&3
+          VALUES+="--set workload.main.podSpec.dnsConfig.nameservers[0]=\"$DNS1\" "
+        fi
+        if [ "$DNS2" != "" ]; then
+           echo "csv raw $j -- $app_name: Adding DNS2=$DNS2 to the values .." >&3
+          VALUES+="--set workload.main.podSpec.dnsConfig.nameservers[1]=\"$DNS2\" "
+        fi
       fi
     fi
     if [ "$run_as_user" != "" ]; then
@@ -1474,7 +1470,7 @@ echo "KUBECONFIG: $KUBECONFIG" >&3
 echo "SSH KEYS: $PRIVATE_KEY"  >&3
 echo "kubectl bin: $(which kubectl)"  >&3
 echo "---------------------------------------------------------------" >&3
-if [ -z "$NODE_ARRAY" ] || [ -z "$SSH_USERNAME" ] || [ -z "$PRIVATE_KEY" ] || [ -z "$KUBECONFIG" ] || [ -z "$CLUSTER_CIDR_FIRST_TWO_OCTETS" ] || [ -z "$KUBE_TZ" ] || [ -z "$MSTER_SCHEDULE" ] || [ -z "$L2_SWITCH" ] || [ -z "$DNS1" ] || [ -z "$DNS2" ]; then
+if [ -z "$NODE_ARRAY" ] || [ -z "$SSH_USERNAME" ] || [ -z "$PRIVATE_KEY" ] || [ -z "$KUBECONFIG" ] || [ -z "$CLUSTER_CIDR_FIRST_TWO_OCTETS" ] || [ -z "$KUBE_TZ" ] || [ -z "$MSTER_SCHEDULE" ] || [ -z "$L2_SWITCH" ]; then
   echo "Please answer the following questions to create the environment" >&3
   echo "---------------------------------------------------------------" >&3
 fi
@@ -1495,8 +1491,6 @@ if [ ! -f "$KUBECONFIG" ]; then
 fi
 readVar CLUSTER_CIDR_FIRST_TWO_OCTETS "$CLUSTER_CIDR_DEFAULT" "Please entre the first two octets of the subnet 16 of the cluster CIDR (10.244 means 10.244.0.0/16)" 1
 readVar KUBE_TZ "$TZ_DEFAULT" "Please entre your Time Zone" 1
-readVar DNS1 "1.1.1.1" "Please entre DNS 1" 1
-readVar DNS2 "8.8.8.8" "Please entre DNS 2" 1
 
 ##############################################################################################################
 binInstall false
