@@ -9,3 +9,4 @@ bin
 kubeconfig
 .nfs*
 NOTES.md
+/*.BACKUP
