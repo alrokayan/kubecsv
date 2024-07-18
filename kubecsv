@@ -973,11 +973,11 @@ ff02::2 ip6-allrouters' >>tmp/hosts
   done
   wait
 
+  echo "-- Updating, upgrading and installing pre-requisites on all nodes, please wait ..." >&3
   for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
     (
-      echo "-- Updating, upgrading and installing pre-requisites on all nodes, please wait ..." >&3
       IP=${NODE_ARRAY[$i]}
-      ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
+      ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" DEBIAN_FRONTEND="noninteractive" i="$i" DNS1="$DNS1" DNS2="$DNS2" "bash -s" <<'____EOF____'
 #!/bin/bash
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 echo "-- $HOSTNAME: Creating folders and setting permissions"
