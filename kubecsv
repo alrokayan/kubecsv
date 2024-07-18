@@ -1483,7 +1483,7 @@ while ! IS_ALL_NODES_ONLINE; do
   readArrayVar NODE_ARRAY "Please entre kubernetes cluster's nodes IP addresses the first one is the master (seperate IPs with SPACE)" "$(IFS=' ' ; echo "$NODE_ARRAY_DEFAULT" )"
 done
 readVar SSH_USERNAME "$SSH_USERNAME_DEFAULT" "Please entre the SSH username" 1
-while ! sshCopyID; do
+while ! sshCopyID || [ ! -f "$PRIVATE_KEY" ]; do
   PRIVATE_KEY="$PRIVATE_KEY_DEFAULT"
   readVar PRIVATE_KEY "$PRIVATE_KEY_DEFAULT" "Please enter the absolute path for your private key. It will be created if does not exist. The default value is recommended"
 done
