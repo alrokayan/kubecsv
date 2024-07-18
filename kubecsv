@@ -1474,7 +1474,7 @@ echo "KUBECONFIG: $KUBECONFIG" >&3
 echo "SSH KEYS: $PRIVATE_KEY"  >&3
 echo "kubectl bin: $(which kubectl)"  >&3
 echo "---------------------------------------------------------------" >&3
-if [ -z "$NODE_ARRAY" ] || [ -z "$SSH_USERNAME" ] || [ -z "$PRIVATE_KEY" ] || [ -z "$KUBECONFIG" ] || [ -z "$CLUSTER_CIDR_FIRST_TWO_OCTETS" ] || [ -z "$KUBE_TZ" ] || [ -z "$MSTER_SCHEDULE" ] || [ -z "$L2_SWITCH" ]; then
+if [ -z "$NODE_ARRAY" ] || [ -z "$SSH_USERNAME" ] || [ -z "$PRIVATE_KEY" ] || [ -z "$KUBECONFIG" ] || [ -z "$CLUSTER_CIDR_FIRST_TWO_OCTETS" ] || [ -z "$KUBE_TZ" ] || [ -z "$MSTER_SCHEDULE" ] || [ -z "$L2_SWITCH" ] || [ -z "$DNS1" ] || [ -z "$DNS2" ]; then
   echo "Please answer the following questions to create the environment" >&3
   echo "---------------------------------------------------------------" >&3
 fi
