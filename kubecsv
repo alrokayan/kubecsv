@@ -20,7 +20,6 @@ mkdir -p logs tmp bin
 LOG_FILE="$(pwd)/logs/$(date +"%Y_%m_%d_%I_%M_%p").log"
 shopt -s nocasematch
 exec 3>&1 1>>"$LOG_FILE" 2>&1
-trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 trap "echo 'ERROR: An error occurred during execution, check log $LOG_FILE for details.' >&3"
 touch .env
 export PATH="$(pwd)/bin:$PATH"
@@ -309,7 +308,6 @@ function copyKubeconfig() {
     i=0
     ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
 #!/bin/bash
-trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 rm -f ~/.kube/config
 cp -i /etc/kubernetes/admin.conf ~/.kube/config 
 chown "$(id -un)":"$(id -gn)" ~/.kube/config 
@@ -443,16 +441,16 @@ spec:
                 "fromArg": "k8s-$APP_NAMESPACE"
               }
             ]
-          }
-        },
+          },
           "dns":
           {
             "nameservers":
             [
               "$DNS1",
-              "$DNS2" 
+              "$DNS2"
             ]
           }
+        },
         {
           "type": "portmap",
           "capabilities": {
@@ -486,7 +484,6 @@ function SWAPRemoval() {
     (
       ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
 #!/bin/bash
-trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 if free | awk '/^Swap:/ {exit !$2}'; then
   echo "-- NODE $i -- removing swap partation "
   sed -e '/swap/ s/^#*/#/' -i /etc/fstab
@@ -629,6 +626,49 @@ function binInstall() {
   k9s version
   jq --version
 }
+#######################################
+#######################################
+####### FUNCTION FixFlannel ###########
+#######################################
+#######################################
+function FixFlannel() {
+  echo "-- Fixing flannel/cni NIC on all nodes" >&3
+  for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
+    (
+      ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
+#!/bin/bash
+trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Is)]  "; set -x' DEBUG
+for nic in $(ip link show | grep -e cni -e flannel | awk -F@ '{print $1}' | awk '{print $2}'); do
+  ip link set $nic down
+  ip link delete $nic
+done
+systemctl restart containerd 
+systemctl restart kubelet 
+____EOF____
+    ) &
+  done
+  wait
+}
+
+#######################################
+#######################################
+######### FUNCTION setDNS1 ############
+#######################################
+#######################################
+function setDNS1() {
+  COREDNS_POD_NAME1=$(kubectl get pod -l k8s-app=kube-dns -n kube-system --no-headers=true | awk 'NR==1{print $1}')
+  DNS1=$(kubectl get pod "$COREDNS_POD_NAME1" -n kube-system --template '{{.status.podIP}}')
+}
+
+#######################################
+#######################################
+######### FUNCTION setDNS2 ############
+#######################################
+#######################################
+function setDNS2() {
+  COREDNS_POD_NAME2=$(kubectl get pod -l k8s-app=kube-dns -n kube-system --no-headers=true | awk 'NR==2{print $1}')
+  DNS2=$(kubectl get pod "$COREDNS_POD_NAME2" -n kube-system --template '{{.status.podIP}}')
+}
 
 #######################################
 #######################################
@@ -637,40 +677,31 @@ function binInstall() {
 #######################################
 function FixDNS() {
   echo "-- Fixing CoreDNS IP addresses in kubelet config " >&3
-  COREDNS_POD_NAME1=$(kubectl get pod -l k8s-app=kube-dns -n kube-system --no-headers=true | awk 'NR==1{print $1}')
-  COREDNS_POD_NAME2=$(kubectl get pod -l k8s-app=kube-dns -n kube-system --no-headers=true | awk 'NR==2{print $1}')
-  COREDNS_IP1=$(kubectl get pod "$COREDNS_POD_NAME1" -n kube-system --template '{{.status.podIP}}')
-  COREDNS_IP2=$(kubectl get pod "$COREDNS_POD_NAME2" -n kube-system --template '{{.status.podIP}}')
-  echo "-- CoreDNS IP1: $COREDNS_IP1" >&3
-  echo "-- CoreDNS IP2: $COREDNS_IP2" >&3
-  for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
-    (
-      ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}" DEBIAN_FRONTEND="noninteractive" i="$i" COREDNS_IP1="$COREDNS_IP1" COREDNS_IP2="$COREDNS_IP2" "bash -s" <<'____EOF____'
+  setDNS1
+  setDNS2
+  echo "-- CoreDNS IP1: $DNS1" >&3
+  echo "-- CoreDNS IP2: $DNS2" >&3
+  ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}" DEBIAN_FRONTEND="noninteractive" i="$i" DNS1="$DNS1" DNS2="$DNS2" "bash -s" <<'____EOF____'
 #!/bin/bash
-trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
-if [ "$COREDNS_IP1" != "<no value>" ]; then
-  mkdir -p /tmp/kubeletconfigurationpatches
-  cd /tmp/kubeletconfigurationpatches
-  if [ "$COREDNS_IP2" != "<no value>" ]; then
+if [ "$DNS1" != "<no value>" ]; then
+  mkdir -p /var/lib/kubelet/kubeletconfigurationpatches
+  if [ "$DNS2" != "<no value>" ]; then
     echo "clusterDNS:
-- $COREDNS_IP1
-- $COREDNS_IP2
+- $DNS1
+- $DNS2
 clusterDomain: cluster.local
-resolvConf: /etc/resolv.conf" > 'kubeletconfiguration0+merge.yaml'
+resolvConf: /etc/resolv.conf" > '/var/lib/kubelet/kubeletconfigurationpatches/kubeletconfiguration0+merge.yaml'
   else
     echo "clusterDNS:
-- $COREDNS_IP1
+- $DNS1
 clusterDomain: cluster.local
-resolvConf: /etc/resolv.conf" > 'kubeletconfiguration0+merge.yaml'
+resolvConf: /etc/resolv.conf" > '/var/lib/kubelet/kubeletconfigurationpatches/kubeletconfiguration0+merge.yaml'
   fi
 fi
 echo "-- $HOSTNAME: Upgrading kubelet configuration"
-kubeadm upgrade node phase kubelet-config --patches ./
-systemctl restart kubelet
+kubeadm upgrade node phase kubelet-config --patches /var/lib/kubelet/kubeletconfigurationpatches/
 ____EOF____
-    ) &
-  done
-  wait
+  FixFlannel
 }
 
 #######################################
@@ -729,8 +760,6 @@ function unD() {
       (
       ssh -i "$PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[i]}" i=$i bash <<'____EOF____'
 #!/bin/bash
-trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
-
 echo "-- $HOSTNAME: deleting leftover NICs"
 for nic in $(ip link show | grep -e cni -e flannel | awk -F@ '{print $1}' | awk '{print $2}'); do
   ip link set $nic down
@@ -798,7 +827,11 @@ function sshCopyID() {
 #######################################
 #######################################
 function deployAPP() {
-  VALUES+="--set workload.main.podSpec.annotations.\"k8s\.v1\.cni\.cncf\.io/networks=$NETWORK_ANNOTATION\" --set TZ=$KUBE_TZ "
+  if [ "$GW" == "" ]; then
+    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=$NETWORK_ANNOTATION' --set TZ=$KUBE_TZ"
+  else
+    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=[$NETWORK_ANNOTATION]' --set TZ=$KUBE_TZ"
+  fi
   VALUES="${VALUES//$'\r'/}"
   echo "csv raw $(($j - 1)) -- $CURRENT_APP: Deploying .." >&3
   echo "with values: $VALUES"
@@ -847,7 +880,7 @@ function END_OF_SCRIPT() {
 #######################################
 #######################################
 function step0() {
-  binInstall false
+  binInstall
   copyKubeconfig
   SWAPRemoval
   response="$(curl -w '%{http_code}' -o /dev/null -ILks https://${NODE_ARRAY[0]}:6443)"
@@ -865,7 +898,6 @@ function step0() {
     (
       ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
 #!/bin/bash
-trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 
 echo "-- Uninstalling in Node $i"
 if command -v kubeadm &> /dev/null; then
@@ -979,7 +1011,6 @@ ff02::2 ip6-allrouters' >>tmp/hosts
       IP=${NODE_ARRAY[$i]}
       ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" DEBIAN_FRONTEND="noninteractive" i="$i" DNS1="$DNS1" DNS2="$DNS2" "bash -s" <<'____EOF____'
 #!/bin/bash
-trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 echo "-- $HOSTNAME: Creating folders and setting permissions"
 mkdir -p ~/.kube
 mkdir -p /opt/cni/bin
@@ -1102,7 +1133,6 @@ ____EOF____
     (
       ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" K8S_VERSION="$K8S_VERSION" "bash -s" <<'____EOF____'
 #!/bin/bash
-trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 echo "-- $HOSTNAME: Installing kubernetes (version: $K8S_VERSION)"
 apt install -y --allow-change-held-packages kubelet=$K8S_VERSION kubeadm=$K8S_VERSION kubectl=$K8S_VERSION 
 apt-mark hold kubelet kubeadm kubectl containerd  
@@ -1128,7 +1158,6 @@ function step2() {
   i=0
   ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" CLUSTER_CIDR_FIRST_TWO_OCTETS="$CLUSTER_CIDR_FIRST_TWO_OCTETS" MASTER_IP="${NODE_ARRAY[0]}" K8S_VERSION="$K8S_VERSION" SSH_USERNAME="$SSH_USERNAME" "bash -s" <<'____EOF____'
 #!/bin/bash
-trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 echo "-- $HOSTNAME: Initializing k8s master version: $(echo "$K8S_VERSION" | sed 's/-[0-9].*//')"
 kubeadm init  --kubernetes-version $(echo "$K8S_VERSION" | sed 's/-[0-9].*//') \
               --apiserver-advertise-address=$MASTER_IP \
@@ -1186,7 +1215,6 @@ ____EOF____
       scp -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS tmp/join.sh "$SSH_USERNAME"@"$IP":~/.kube/join.sh
       ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
 #!/bin/bash
-trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 chmod +x $HOME/.kube/join.sh
 echo "-- $HOSTNAME: Joining k8s cluster"
 $HOME/.kube/join.sh
@@ -1228,7 +1256,6 @@ function step3() {
       (
       ssh -i "$PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[i]}" i=$i CLUSTER_CIDR_FIRST_TWO_OCTETS=$CLUSTER_CIDR_FIRST_TWO_OCTETS bash <<'____EOF____'
 #!/bin/bash
-trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 
 echo "-- $HOSTNAME: Creating subnet.env"
 mkdir -p /run/flannel
@@ -1248,7 +1275,6 @@ ____EOF____
       ) &
     done
     wait
-
     
     if [ $L2_SWITCH == "y" ]; then
       FLANNEL_BACKEND="host-gw"
@@ -1269,40 +1295,26 @@ ____EOF____
     sed -i.BACKUP 's/namespace: kube-system/namespace: kube-network/g' tmp/multus-daemonset-thick.yml
     kubectl apply -n kube-network -f tmp/multus-daemonset-thick.yml
     
-    echo "-- Deploying DHCP CNI plugin" >&3 -broadcast=true
+    echo "-- Deploying DHCP CNI plugin" >&3
     curl --silent -fsSL https://raw.githubusercontent.com/k8snetworkplumbingwg/reference-deployment/master/multus-dhcp/dhcp-daemonset.yml -o tmp/dhcp-daemonset.yml
     sed -i.BACKUP 's/namespace: kube-system/namespace: kube-network/g' tmp/dhcp-daemonset.yml
     kubectl apply -n kube-network -f tmp/dhcp-daemonset.yml
-
-    echo "-- Fixing flannel/cni NIC on all nodes" >&3
-    for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
-      (
-        ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
-#!/bin/bash
-trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Is)]  "; set -x' DEBUG
-for nic in $(ip link show | grep -e cni -e flannel | awk -F@ '{print $1}' | awk '{print $2}'); do
-  ip link set $nic down
-  ip link delete $nic
-done
-systemctl restart containerd 
-systemctl restart kubelet 
-____EOF____
-      ) &
-    done
     wait
-
+    sleep 5
     echo "-- Restarting CoreDNS" >&3
     kubectl delete pod --selector=k8s-app=kube-dns -n kube-system --grace-period=0 --force
     echo "-- waiting for flannel" >&3
     while [ "$(kubectl get pods -A -l app=flannel -ojson | jq '.items[0].status.phase')" != "\"Running\"" ]; do
-      sleep 5
+      FixFlannel
+      sleep 20
     done
     sleep 5
     if [ "$(kubectl get pods -n kube-system -l k8s-app=kube-dns -ojson | jq '.items[0].status.phase')" != "\"Running\"" ]; then
       kubectl delete pod --selector=k8s-app=kube-dns -n kube-system --force
       echo "-- waiting for CoreDNS" >&3
       while [ "$(kubectl get pods -n kube-system -l k8s-app=kube-dns -ojson | jq '.items[0].status.phase')" != "\"Running\"" ]; do
-        sleep 5
+        FixFlannel
+        sleep 20
       done
     fi
     sleep 5
@@ -1384,22 +1396,35 @@ function step5() {
       export BRIDGE_NAME=cbr-${nw_master_nic//@/-}
       export APP_NAMESPACE
       export MAC
-      ip="$(echo $nw_address_with_subnet | cut -d'/' -f1)"
-      if [[ $ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      export DNS1=$nw_dns1
+      export DNS2=$nw_dns2
+      export GW=$nw_gateway
+      export IPCIDR=$nw_address_with_subnet
+      IP=$(echo "$IPCIDR" | cut -d'/' -f1)
+      kubectl delete network-attachment-definitions.k8s.cni.cncf.io "$BRIDGE_NAME" -n "$APP_NAMESPACE"
+      if [[ $IP =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         echo "csv raw $j -- $app_name: Adding STATIC IP ($nw_address_with_subnet) ($MAC) network configuration $nw_master_nic to the values .." >&3
-        kubectl delete network-attachment-definitions.k8s.cni.cncf.io "$BRIDGE_NAME" -n "$APP_NAMESPACE"
-        export IPCIDR=$nw_address_with_subnet
-        export GW=$nw_gateway
         createNetworkAttachmentDefinition_STATIC
       else
         echo "csv raw $j -- $app_name: Adding DHCP ($MAC) network configuration $nw_master_nic to the values .." >&3
-        kubectl delete network-attachment-definitions.k8s.cni.cncf.io "$BRIDGE_NAME" -n "$APP_NAMESPACE"
         createNetworkAttachmentDefinition_DHCP
       fi
-      if [ "$NETWORK_ANNOTATION" == "" ]; then
-        NETWORK_ANNOTATION="$BRIDGE_NAME"
+      if [ "$GW" == "" ]; then
+        if [ "$NETWORK_ANNOTATION" == "" ]; then
+          NETWORK_ANNOTATION="$BRIDGE_NAME"
+        else
+          NETWORK_ANNOTATION+="\,$BRIDGE_NAME"
+        fi
       else
-        NETWORK_ANNOTATION+="\,$BRIDGE_NAME"
+        if [ "$NETWORK_ANNOTATION" == "" ]; then
+          NETWORK_ANNOTATION="{\"name\": \"$BRIDGE_NAME\"\,\"default-route\": [\"$GW\"]}"
+        else
+          NETWORK_ANNOTATION+=",{\"name\": \"$BRIDGE_NAME\"\,\"default-route\": [\"$GW\"]}"
+        fi
+      fi
+      if [ "$DNS1" != "" ] || [ "$DNS2" != "" ]; then
+        echo "csv raw $j -- $app_name: Adding dnsPolicy=ClusterFirstWithHostNet to the values .." >&3
+        VALUES+="--set podOptions.dnsPolicy=ClusterFirstWithHostNet "
       fi
     fi
     if [ "$run_as_user" != "" ]; then
