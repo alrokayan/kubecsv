@@ -18,17 +18,12 @@
 
 mkdir -p logs tmp bin
 LOG_FILE="$(pwd)/logs/$(date +"%Y_%m_%d_%I_%M_%p").log"
+shopt -s nocasematch
 exec 3>&1 1>>"$LOG_FILE" 2>&1
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Iseconds)]  "; set -x' DEBUG
 trap "echo 'ERROR: An error occurred during execution, check log $LOG_FILE for details.' >&3"
 touch .env
 export PATH="$(pwd)/bin:$PATH"
-if ! cat .env | grep "export FLANNEL_BACKEND="; then
-  echo 'export FLANNEL_BACKEND="host-gw"' >> .env
-fi
-if ! cat .env | grep "export FLANNEL_DIRECTROUTING="; then
-  echo 'export FLANNEL_DIRECTROUTING=false' >> .env
-fi
 if ! cat .env | grep "export SSH_EXTRA_ARGS="; then
   echo 'export SSH_EXTRA_ARGS="-o StrictHostKeyChecking=no"' >> .env
 fi
@@ -43,6 +38,8 @@ export NODE_ARRAY_DEFAULT="(10.99.0.100 10.99.0.101 10.99.0.102 10.99.0.103)"
 KUBECONFIG_DEFAULT="$(pwd)/kubeconfig"
 export KUBECONFIG_DEFAULT
 export CLUSTER_CIDR_DEFAULT="10.244"
+export L2_SWITCH_DEFAULT="n"
+export MSTER_SCHEDULE_DEFAULT="n"
 export TZ_DEFAULT="Etc/GMT"
 export SSH_USERNAME_DEFAULT="root"
 PRIVATE_KEY_DEFAULT="$(pwd)/.ssh/id_rsa"
@@ -55,8 +52,6 @@ export CSV_LARGENFSPATH_DEFAULT="/mnt/hdd"
 export CSV_IP_DEFAULT=10.99.0.50
 export CSV_CIDR_DEFAULT=24
 export CSV_GW_DEFAULT=10.99.0.1
-export CSV_DNS1_DEFAULT=10.99.0.1
-export CSV_DNS2_DEFAULT=1.1.1.1
 
 #######################################
 #######################################
@@ -99,6 +94,44 @@ function readVar() {
     else
       echo ">> $3: (Default: ${!1}) [TIMEOUT: ${5}s]" >&3
       read -t $5 -r INPUT
+    fi
+    [[ $INPUT != "" ]] && eval "export $1=$INPUT"
+  else
+    eval "export $1=${!1}"
+  fi
+  sed -i.BACKUP "/^export $1=/d" .env
+  echo "export $1=\"${!1}\"" >>.env
+}
+
+#######################################
+#######################################
+####### FUNCTION readYesNoVar #########
+#######################################
+#######################################
+function readYesNoVar() {
+  # $1: Variable name
+  # $2: Default value
+  # $3: Message
+  # $4: Skip if variable is not empty (send any character to skip)
+  # $5: timeout
+  if [[ -z ${!1} ]] || [[ -z $4 ]]; then
+    [[ -z ${!1} ]] && eval "export $1=$2"
+    if [[ -z $5 ]]; then
+      echo ">> $3: (Default: ${!1})" >&3
+      read -r INPUT
+      if [[ "$INPUT" =~ "y" ]]; then
+        INPUT="y"
+      else
+        INPUT="n"
+      fi
+    else
+      echo ">> $3: (Default: ${!1}) [TIMEOUT: ${5}s]" >&3
+      read -t $5 -r INPUT
+      if [[ "$INPUT" =~ "y" ]]; then
+        INPUT="y"
+      else
+        INPUT="n"
+      fi
     fi
     [[ $INPUT != "" ]] && eval "export $1=$INPUT"
   else
@@ -167,8 +200,8 @@ function deployFileCreation() {
     readVar CSV_CIDR "$CSV_CIDR_DEFAULT" "What's the CIDR suffex for $CSV_IP?" $READVARASK >&3
     export CSV_CIDR="${CSV_CIDR//$'/'/}"
     readVar CSV_GW "$CSV_GW_DEFAULT" "What's the gateway for $CSV_IP?" $READVARASK >&3
-    readVar CSV_DNS1 "$CSV_DNS1_DEFAULT" "What's the DNS1 for $CSV_IP?" $READVARASK >&3
-    readVar CSV_DNS2 "$CSV_DNS2_DEFAULT" "hat's the DNS2 for $CSV_IP?" $READVARASK >&3
+    readVar CSV_DNS1 "$DNS1" "What's the DNS1 for $CSV_IP?" $READVARASK >&3
+    readVar CSV_DNS2 "$DNS2" "hat's the DNS2 for $CSV_IP?" $READVARASK >&3
     if [ "$CSV_MASTERNIC" == "" ]; then CSV_MASTERNIC=$CSV_MASTERNIC_DEFAULT; fi
     if [ "$CSV_LARGENFSPATH" == "" ]; then CSV_LARGENFSPATH=$CSV_LARGENFSPATH_DEFAULT; fi
     if [ "$CSV_NFSSERVER" == "" ]; then CSV_NFSSERVER=$CSV_NFSSERVER_DEFAULT; fi
@@ -176,8 +209,8 @@ function deployFileCreation() {
     if [ "$CSV_IP" == "" ]; then CSV_IP=$CSV_IP_DEFAULT; fi
     if [ "$CSV_CIDR" == "" ]; then CSV_CIDR=$CSV_CIDR_DEFAULT; fi
     if [ "$CSV_GW" == "" ]; then CSV_GW=$CSV_GW_DEFAULT; fi
-    if [ "$CSV_DNS1" == "" ]; then CSV_DNS1=$CSV_DNS1_DEFAULT; fi
-    if [ "$CSV_DNS2" == "" ]; then CSV_DNS2=$CSV_DNS2_DEFAULT; fi
+    if [ "$CSV_DNS1" == "" ]; then CSV_DNS1=$DNS1; fi
+    if [ "$CSV_DNS2" == "" ]; then CSV_DNS2=$DNS2; fi
     cat <<EOF >deploy.csv
 app_name,helm_truechart,storage_name,storage_enabled,storage_path,storage_subPath,storage_server,storage_type,storage_mountPath,nw_master_nic,nw_mac,nw_address_with_subnet,nw_gateway,nw_dns1,nw_dns2,run_as_user,run_as_group,privileged,extra_helm_values
 plex,plex,config,true,$CSV_NFSPATH/plex,config,$CSV_NFSSERVER,nfs,/config,,,,,,,,,,
@@ -392,6 +425,12 @@ spec:
           "enableIPv6": false,
           "ipam": {
             "type": "dhcp",
+            "routes":
+            [
+              {
+                "dst": "0.0.0.0/0"
+              }
+            ],
             "daemonSocketPath": "/run/cni/dhcp.sock",
             "request": [
               {
@@ -406,6 +445,14 @@ spec:
             ]
           }
         },
+          "dns":
+          {
+            "nameservers":
+            [
+              "$DNS1",
+              "$DNS2" 
+            ]
+          }
         {
           "type": "portmap",
           "capabilities": {
@@ -473,13 +520,9 @@ function runDNSTool() {
   kubectl delete network-attachment-definitions.k8s.cni.cncf.io "$BRIDGE_NAME" -n "$APP_NAMESPACE"
   if [ "$app_dnstools_ip" != "" ]; then
     readVar app_dnstools_gw "10.99.0.1" "Please entre the gateway address for dnstools" 1
-    readVar app_dnstools_dns1 "1.1.1.1" "Please entre DNS 1 for dnstools" 1
-    readVar app_dnstools_dns2 "8.8.8.8" "Please entre DNS 2 for dnstools" 1
     echo "-- Deploying cbr1-$app_dnstools_master_nic NetworkAttachmentDefinition" >&3
     export IPCIDR="$app_dnstools_ip"
     export GW="$app_dnstools_gw"
-    export DNS1="$app_dnstools_dns1"
-    export DNS2="$app_dnstools_dns2"
     createNetworkAttachmentDefinition_STATIC
   else
     echo "-- Deploying cbr2-$app_dnstools_master_nic NetworkAttachmentDefinition" >&3
@@ -648,33 +691,36 @@ function unD() {
       fi
     ) &
   done
-  wait
 
   if ! $1; then
+    wait
     echo "-- apps uninstalled (kube-network skipped)" >&3
   else
     echo "-- Uninstalling Multus" >&3
+    (
     if ! [ -f tmp/multus-daemonset-thick.yml ]; then
       curl --silent -fsSL https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/deployments/multus-daemonset-thick.yml -o tmp/multus-daemonset-thick.yml
       sed -i.BACKUP 's/namespace: kube-system/namespace: kube-network/g' tmp/multus-daemonset-thick.yml
     fi
     kubectl delete -n kube-network -f tmp/multus-daemonset-thick.yml --grace-period=0 --force
+    ) &
 
     echo "-- Uninstalling DHCP" >&3
+    (
     if ! [ -f tmp/dhcp-daemonset.yml ]; then
       curl --silent -fsSL https://raw.githubusercontent.com/k8snetworkplumbingwg/reference-deployment/master/multus-dhcp/dhcp-daemonset.yml -o tmp/dhcp-daemonset.yml
       sed -i.BACKUP 's/namespace: kube-system/namespace: kube-network/g' tmp/dhcp-daemonset.yml
     fi
     kubectl delete -n kube-network -f tmp/dhcp-daemonset.yml --grace-period=0 --force
+    ) &
 
     echo "-- Uninstalling flannel" >&3
-    helm uninstall flannel -n kube-network &
-    ns="kube-network"
-    echo "-- Uninstalling all resources in $ns " >&3
+    ( helm uninstall flannel -n kube-network ) &
+    echo "-- Uninstalling all resources in kube-network " >&3
     (
-      helm ls --all --short -n "$ns" | xargs -L1 helm delete -n "$ns"
+      helm ls --all --short -n "kube-network" | xargs -L1 helm delete -n "kube-network"
       kubectl delete all --all --namespace="$ns" --grace-period=0 --force
-      kubectl delete ns "$ns" --grace-period=0 --force
+      kubectl delete ns "kube-network" --grace-period=0 --force
     ) &
     wait
 
@@ -742,16 +788,6 @@ function sshCopyID() {
     mkdir -p ~/.ssh
     chmod 700 ~/.ssh
     ssh-copy-id -o LogLevel=QUIET -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" 1>&3
-    if [[ $? -eq 0 ]]; then
-      echo "-- ssh-copy-id for $IP is successful"
-    else
-      echo -n "-- ERROR: ssh-copy-id failed for $IP with the following public key in $(dirname $PRIVATE_KEY): "
-      cat "$PRIVATE_KEY.pub"
-      echo
-      # sed -i.BACKUP "/^export PRIVATE_KEY=/d" .env
-      unset PRIVATE_KEY
-      return 1
-    fi
   done
   return 0
 }
@@ -811,7 +847,7 @@ function END_OF_SCRIPT() {
 #######################################
 #######################################
 function step0() {
-  binInstall
+  binInstall false
   copyKubeconfig
   SWAPRemoval
   response="$(curl -w '%{http_code}' -o /dev/null -ILks https://${NODE_ARRAY[0]}:6443)"
@@ -897,6 +933,12 @@ for nic in $(ip link show | grep -e lxc -e cali -e cilium -e flannel -e tunl -e 
   ip link set $nic down
   ip link delete $nic
 done
+
+echo "-- $HOSTNAME: relinking /etc/resolv.conf"
+rm -f /etc/resolv.conf
+ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
+resolvectl flush-caches 
+systemctl restart systemd-resolved
 
 echo "-- $HOSTNAME: Uninstall Completed"
 ____EOF____
@@ -993,7 +1035,7 @@ apt install -y \
     cifs-utils \
     openvswitch-switch 
 
-echo "-- $HOSTNAME: Enabling kernel modules, ip forwarding, disabling DNSStubListener and re-link resolv.conf"
+echo "-- $HOSTNAME: Enabling kernel modules, ip forwarding and disabling DNSStubListener"
 echo 'overlay
 br_netfilter' > /etc/modules-load.d/kubernetes.conf
 modprobe overlay
@@ -1008,12 +1050,18 @@ sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/&usbcore.autosuspend=-1 /' /etc/default/
 sed -i '/.*#DNSStubListener=.*/ c\DNSStubListener=no' /etc/systemd/resolved.conf
 update-grub 
 sysctl --system 
-rm -f /etc/resolv.conf
-ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
-resolvectl flush-caches 
-systemctl restart systemd-resolved
 echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 apt-get install -y -q
+
+echo "-- $HOSTNAME: Fixing local DNS"
+rm -f /etc/resolv.conf
+cat <<EOF > /etc/resolv.conf
+nameserver $DNS1
+nameserver $DNS2
+search home
+EOF
+resolvectl flush-caches 
+systemctl restart systemd-resolved
 
 echo "-- $HOSTNAME: Installing gpg for jave (adoptium) and kubernetes"
 mkdir -p -m 755 /etc/apt/keyrings
@@ -1162,9 +1210,9 @@ function step3() {
   echo "-- Updating helm repos" >&3
   helm repo update
 
-  if [ -f $KUBECONFIG ]; then
+  if [ -f "$KUBECONFIG" ]; then
     ## Allow master node to schedule pods
-    if [ ${#NODE_ARRAY[@]} -eq 1 ] || [ "$INC_MASTER" == "y" ]; then
+    if [ ${#NODE_ARRAY[@]} -eq 1 ] || [ "$MSTER_SCHEDULE" == "y" ]; then
       echo "-- Allowing master node to schedule app ..." >&3
       MASTER_HOSTNAME=$(ssh -i "$PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[0]}" hostname)
       kubectl taint nodes "$MASTER_HOSTNAME" node-role.kubernetes.io/control-plane:NoSchedule-
@@ -1201,13 +1249,18 @@ ____EOF____
     done
     wait
 
-    echo "-- Deploying flannel with backend $FLANNEL_BACKEND (You can change it from the .env file)" >&3
+    
+    if [ $L2_SWITCH == "y" ]; then
+      FLANNEL_BACKEND="host-gw"
+    else
+      FLANNEL_BACKEND="vxlan"
+    fi
+    echo "-- Deploying flannel with backend $FLANNEL_BACKEND" >&3
     # https://github.com/flannel-io/flannel/blob/master/chart/kube-flannel/values.yaml
     helm upgrade --install flannel \
       --namespace kube-network --create-namespace \
       --set podCidr="${CLUSTER_CIDR_FIRST_TWO_OCTETS}.0.0/16" \
       --set flannel.backend="$FLANNEL_BACKEND" \
-      --set flannel.directRouting=$FLANNEL_DIRECTROUTING \
       flannel/flannel
 
     echo "-- Deploying Multus" >&3
@@ -1221,9 +1274,9 @@ ____EOF____
     sed -i.BACKUP 's/namespace: kube-system/namespace: kube-network/g' tmp/dhcp-daemonset.yml
     kubectl apply -n kube-network -f tmp/dhcp-daemonset.yml
 
+    echo "-- Fixing flannel/cni NIC on all nodes" >&3
     for ((i = 0; i <= ${#NODE_ARRAY[@]} - 1; i++)); do
       (
-        echo "-- Fixing flannel/cni NIC on all nodes" >&3
         ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[$i]}" DEBIAN_FRONTEND="noninteractive" i="$i" "bash -s" <<'____EOF____'
 #!/bin/bash
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Is)]  "; set -x' DEBUG
@@ -1328,7 +1381,7 @@ function step5() {
       MAC_REGEX="^([a-fA-F0-9]{2}:){5}[a-fA-F0-9]{2}$"
       if ! [[ $MAC =~ $MAC_REGEX ]]; then MAC="$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1))"; fi
       export MASTER_NIC="$nw_master_nic"
-      export BRIDGE_NAME=cbr-$nw_master_nic
+      export BRIDGE_NAME=cbr-${nw_master_nic//@/-}
       export APP_NAMESPACE
       export MAC
       ip="$(echo $nw_address_with_subnet | cut -d'/' -f1)"
@@ -1337,8 +1390,6 @@ function step5() {
         kubectl delete network-attachment-definitions.k8s.cni.cncf.io "$BRIDGE_NAME" -n "$APP_NAMESPACE"
         export IPCIDR=$nw_address_with_subnet
         export GW=$nw_gateway
-        export DNS1=$nw_dns1
-        export DNS2=$nw_dns2
         createNetworkAttachmentDefinition_STATIC
       else
         echo "csv raw $j -- $app_name: Adding DHCP ($MAC) network configuration $nw_master_nic to the values .." >&3
@@ -1398,7 +1449,7 @@ echo "KUBECONFIG: $KUBECONFIG" >&3
 echo "SSH KEYS: $PRIVATE_KEY"  >&3
 echo "kubectl bin: $(which kubectl)"  >&3
 echo "---------------------------------------------------------------" >&3
-if [ -z "$NODE_ARRAY" ] || [ -z "$SSH_USERNAME" ] || [ -z "$PRIVATE_KEY" ] || [ -z "$KUBECONFIG" ] || [ -z "$CLUSTER_CIDR_FIRST_TWO_OCTETS" ] || [ -z "$KUBE_TZ" ] || [ -z "$INC_MASTER" ]; then
+if [ -z "$NODE_ARRAY" ] || [ -z "$SSH_USERNAME" ] || [ -z "$PRIVATE_KEY" ] || [ -z "$KUBECONFIG" ] || [ -z "$CLUSTER_CIDR_FIRST_TWO_OCTETS" ] || [ -z "$KUBE_TZ" ] || [ -z "$MSTER_SCHEDULE" ] || [ -z "$L2_SWITCH" ]; then
   echo "Please answer the following questions to create the environment" >&3
   echo "---------------------------------------------------------------" >&3
 fi
@@ -1411,13 +1462,16 @@ while ! sshCopyID; do
   PRIVATE_KEY="$PRIVATE_KEY_DEFAULT"
   readVar PRIVATE_KEY "$PRIVATE_KEY_DEFAULT" "Please enter the absolute path for your private key. It will be created if does not exist. The default value is recommended"
 done
+readYesNoVar L2_SWITCH "$L2_SWITCH_DEFAULT" "Are all nodes connected to a L2 switch? (entre y or n)" 1
+readYesNoVar MSTER_SCHEDULE "$MSTER_SCHEDULE_DEFAULT" "Do you want to schedule pods in the master node? (entre y or n)" 1
 if [ ! -f "$KUBECONFIG" ]; then
   KUBECONFIG="$KUBECONFIG_DEFAULT"
   readVar KUBECONFIG "$KUBECONFIG_DEFAULT" "Please entre the path for KUBECONFIG"
 fi
 readVar CLUSTER_CIDR_FIRST_TWO_OCTETS "$CLUSTER_CIDR_DEFAULT" "Please entre the first two octets of the subnet 16 of the cluster CIDR (10.244 means 10.244.0.0/16)" 1
 readVar KUBE_TZ "$TZ_DEFAULT" "Please entre your Time Zone" 1
-readVar INC_MASTER "y" "Do you want to allow master node to schedule apps (entre y or n)" 1
+readVar DNS1 "1.1.1.1" "Please entre DNS 1" 1
+readVar DNS2 "8.8.8.8" "Please entre DNS 2" 1
 
 ##############################################################################################################
 binInstall false
@@ -1448,7 +1502,7 @@ while $CONTINUE; do
     echo "(b).....(b)inaries installation locally (helm, kubectl, jq and k9s)" >&3
     echo "(k).....(k)9s - monitor K8s cluster status" >&3
     echo "(c).....(c)opy kubeconfig file from the master node" >&3
-    echo "(n).....(n)etwork diagnostic tool (nstools pod deployment)" >&3
+    echo "(n).....(n)etwork diagnostic tool (dnstools pod deployment)" >&3
     echo "(d).....(d)ns fix" >&3
     echo "(s).....(s)wap partition removal" >&3
     echo "(R).....[R]EBOOT ALL NODES" >&3
