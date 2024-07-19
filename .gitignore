@@ -10,3 +10,4 @@ kubeconfig
 .nfs*
 NOTES.md
 /*.BACKUP
+_include
