@@ -1,5 +1,5 @@
 /.DS_Store
-deploy.csv
+*.csv
 logs
 tmp
 bin
