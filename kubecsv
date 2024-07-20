@@ -17,10 +17,19 @@
 # under the License.
 # 
 # HOW TO:
-# curl -fL -H 'Cache-Control: no-cache, no-store' https://raw.githubusercontent.com/alrokayan/kubecsv/main/kubecsv | bash -s -- path/to/file.csv TZ
+# curl -fL -H 'Cache-Control: no-cache, no-store' https://raw.githubusercontent.com/alrokayan/kubecsv/main/kubecsv | bash -s -- deploy.csv Asia/Riyadh ~/.kube/config
 # $1 csv file
 # $2 Time Zone
 # $3 kubeconfig path
+if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    echo "Usage: $0 <CSV file> <Time Zone> <Kubeconfig file>"
+    echo "EXAMPLE: $0 deploy.csv Asia/Riyadh ~/.kube/config"
+    if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+        echo "This script will deploy applications from a CSV file"
+        exit 0
+    fi
+    exit 1
+fi
 #######################################
 #######################################
 # FUNCTION createNetworkAttachmentDefinition_STATIC
