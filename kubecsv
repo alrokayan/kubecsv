@@ -206,45 +206,40 @@ function deployAPP() {
 #######################################
 #######################################
 function binInstall() {
-  mkdir -p bin
-  export PATH="$(pwd)/bin:$PATH"
   if [[ "$(uname -s)" == *"Linux"* ]]; then
+    echo "-- OS: Linux - CHECKING BINARIES" 
     if ! command -v helm &> /dev/null; then
-      echo "-- Downloading helm for Linux"
-      rm -f bin/helm
       curl -L https://get.helm.sh/helm-v3.15.2-linux-"$(dpkg --print-architecture)".tar.gz -o tmp/helm.tar.gz
       tar -zxf tmp/helm.tar.gz -C tmp
-      mv tmp/linux-"$(dpkg --print-architecture)"/helm bin/
-      chmod +x bin/helm
+      sudo mv tmp/linux-"$(dpkg --print-architecture)"/helm /usr/local/bin/
+      sudo chmod +x /usr/local/bin
       if command -v helm &> /dev/null; then echo "-- helm installed successfully" ; fi
     fi
     if ! command -v kubectl &> /dev/null; then
-      echo "-- Downloading kubectl for Linux"
-      rm -f bin/kubectl
-      curl -L "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$(dpkg --print-architecture)/kubectl" -o bin/kubectl
-      chmod +x bin/kubectl
+      sudo curl -L "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$(dpkg --print-architecture)/kubectl" -o /usr/local/bin/kubectl
+      sudo chmod +x /usr/local/bin/kubectl
       if command -v kubectl &> /dev/null; then echo "-- kubectl installed successfully" ; fi
     fi
   fi
   if [[ "$(uname -s)" == *"Darwin"* ]]; then
+    echo "-- OS: macOS - CHECKING BINARIES" 
     if ! command -v helm &> /dev/null; then
-      echo "-- Downloading helm for macOS"
-      rm -f bin/helm
       curl -L "https://get.helm.sh/helm-v3.15.2-darwin-$(arch).tar.gz" -o tmp/helm.tar.gz
       tar -zxf tmp/helm.tar.gz -C tmp
-      mv tmp/darwin-"$(arch)"/helm bin/
-      chmod +x bin/helm
+      sudo mv tmp/darwin-"$(arch)"/helm /usr/local/bin/
+      sudo chmod +x /usr/local/bin/helm
       if command -v helm &> /dev/null; then echo "-- helm installed successfully" ; fi
     fi
     if ! command -v kubectl &> /dev/null; then
-      echo "-- Downloading kubectl for macOS"
-      rm -f bin/kubectl
-      curl -L "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/darwin/$(arch)/kubectl" -o bin/kubectl
-      chmod +x bin/kubectl
+      sudo curl -L "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/darwin/$(arch)/kubectl" -o /usr/local/bin/kubectl
+      sudo chmod +x /usr/local/bin/kubectl
       if command -v kubectl &> /dev/null; then echo "-- kubectl installed successfully" ; fi
     fi
   fi
+  helm version
+  kubectl version --client=true
 }
+
 
 ##############################################################################
 binInstall
