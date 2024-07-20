@@ -36,7 +36,7 @@ fi
 #######################################
 #######################################
 function createNetworkAttachmentDefinition_STATIC() {
-  cat <<EOF | kubectl --kubeconfig $KUBECONFIG_FILE create -f -
+  cat <<EOF | kubectl --kubeconfig "$KUBECONFIG_FILE" create -f -
 apiVersion: "k8s.cni.cncf.io/v1"
 kind: NetworkAttachmentDefinition
 metadata:
@@ -94,7 +94,7 @@ spec:
       ]
     }'
 EOF
-  ssh -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"${NODE_ARRAY[0]}" DEBIAN_FRONTEND="noninteractive" "bash -s" <<'____EOF____'
+  ssh -i "$PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[0]}" DEBIAN_FRONTEND="noninteractive" "bash -s" <<'____EOF____'
 #!/bin/bash
 ip link show type bridge
 ip link show type veth
@@ -108,7 +108,7 @@ ____EOF____
 #######################################
 #######################################
 function createNetworkAttachmentDefinition_DHCP() {
-  cat <<EOF | kubectl --kubeconfig $KUBECONFIG_FILE create -f -
+  cat <<EOF | kubectl --kubeconfig "$KUBECONFIG_FILE" create -f -
 apiVersion: "k8s.cni.cncf.io/v1"
 kind: NetworkAttachmentDefinition
 metadata:
@@ -185,7 +185,7 @@ function deployAPP() {
     VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=[$NETWORK_ANNOTATION]' --set TZ=$TZ"
   fi
   VALUES="${VALUES//$'\r'/}"
-  echo "csv raw $(($j - 1)) -- $CURRENT_APP: Deploying .." 
+  echo "csv raw $((j - 1)) -- $CURRENT_APP: Deploying .." 
   echo "with values: $VALUES"
   echo
   echo -n "-- kubecsv added the following values: "
@@ -243,19 +243,19 @@ function binInstall() {
 
 ##############################################################################
 binInstall
-export CSVFILE="$1"
+export CSV_FILE="$1"
 export TZ="$2"
 export KUBECONFIG_FILE="$3"
-if [ "$CSVFILE" == "" ]; then CSVFILE="deploy.csv"; fi
+if [ "$CSV_FILE" == "" ]; then CSV_FILE="deploy.csv"; fi
 if [ "$TZ" == "" ]; then TZ="Asia/Riyadh"; fi
 if [ "$KUBECONFIG_FILE" == "" ]; then KUBECONFIG_FILE=$KUBECONFIG; fi
-if ! [ -f "$CSVFILE" ]; then echo "CSV file could not be found"; exit 1; fi
+if ! [ -f "$CSV_FILE" ]; then echo "CSV file could not be found"; exit 1; fi
 if ! [ -f "$KUBECONFIG_FILE" ]; then echo "kubeconfig file could not be found"; exit 1; fi
 
 NEW_APP_RAW=true
 j=1
 while IFS="," read -r app_name helm_truechart storage_name storage_enabled storage_path storage_subPath storage_server storage_type storage_mountPath nw_master_nic nw_mac nw_address_with_subnet nw_gateway nw_dns1 nw_dns2 run_as_user run_as_group privileged extra_helm_values; do
-  if (($j > 1)) && [ "$app_name" != "$CURRENT_APP" ]; then
+  if ((j > 1)) && [ "$app_name" != "$CURRENT_APP" ]; then
     deployAPP
   fi
   CURRENT_APP="$app_name"
@@ -263,7 +263,7 @@ while IFS="," read -r app_name helm_truechart storage_name storage_enabled stora
   APP_NAMESPACE="app-$CURRENT_APP"
   if $NEW_APP_RAW; then
     echo "csv raw $j -- $app_name: Building values  .."
-    kubectl --kubeconfig $KUBECONFIG_FILE create ns "$APP_NAMESPACE"
+    kubectl --kubeconfig "$KUBECONFIG_FILE "create ns "$APP_NAMESPACE"
     NEW_APP_RAW=false
   fi
   if [ "$storage_name" != "" ]; then
@@ -290,7 +290,7 @@ while IFS="," read -r app_name helm_truechart storage_name storage_enabled stora
   if [ "$nw_master_nic" != "" ]; then
     MAC=$nw_mac
     MAC_REGEX="^([a-fA-F0-9]{2}:){5}[a-fA-F0-9]{2}$"
-    if ! [[ $MAC =~ $MAC_REGEX ]]; then MAC="$(printf '00:2F:60:%02X:%02X:%02X\n' $(shuf -i 0-99 -n 1) $(shuf -i 101-199 -n 1) $(shuf -i 201-256 -n 1))"; fi
+    if ! [[ $MAC =~ $MAC_REGEX ]]; then MAC="$(printf '00:2F:60:%02X:%02X:%02X\n' "$(shuf -i 0-99 -n 1)" "$(shuf -i 101-199 -n 1)" "$(shuf -i 201-256 -n 1)")"; fi
     export MASTER_NIC="$nw_master_nic"
     export BRIDGE_NAME=cbr-${nw_master_nic//@/-}
     export APP_NAMESPACE
@@ -300,7 +300,7 @@ while IFS="," read -r app_name helm_truechart storage_name storage_enabled stora
     export GW=$nw_gateway
     export IPCIDR=$nw_address_with_subnet
     IP=$(echo "$IPCIDR" | cut -d'/' -f1)
-    kubectl --kubeconfig $KUBECONFIG_FILE delete network-attachment-definitions.k8s.cni.cncf.io "$BRIDGE_NAME" -n "$APP_NAMESPACE"
+    kubectl --kubeconfig "$KUBECONFIG_FILE" delete network-attachment-definitions.k8s.cni.cncf.io "$BRIDGE_NAME" -n "$APP_NAMESPACE"
     if [[ $IP =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
       echo "csv raw $j -- $app_name: Adding STATIC IP ($nw_address_with_subnet) ($MAC) network configuration $nw_master_nic to the values .." 
       createNetworkAttachmentDefinition_STATIC
@@ -356,6 +356,6 @@ while IFS="," read -r app_name helm_truechart storage_name storage_enabled stora
     echo "csv raw $j -- $app_name: Adding extra values: $extra_helm_values .." 
     VALUES+="$extra_helm_values "
   fi
-  j=$(($j + 1))
-done < <(tail -n +2 $1)
+  j=$((j + 1))
+done < <(tail -n +2 "$1")
 deployAPP
