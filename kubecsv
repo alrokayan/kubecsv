@@ -94,12 +94,6 @@ spec:
       ]
     }'
 EOF
-  ssh -i "$PRIVATE_KEY" "$SSH_EXTRA_ARGS" "$SSH_USERNAME"@"${NODE_ARRAY[0]}" DEBIAN_FRONTEND="noninteractive" "bash -s" <<'____EOF____'
-#!/bin/bash
-ip link show type bridge
-ip link show type veth
-bridge link show
-____EOF____
 }
 
 #######################################
