@@ -261,7 +261,6 @@ function deployAPP() {
   VALUES="${VALUES//$'\r'/}"
   echo "csv raw $((j - 1)) -- $CURRENT_APP: Deploying .." 
   echo "with values: $VALUES"
-  echo
   echo -n "-- kubecsv added the following values: "
   echo "${VALUES//--set/$'\n# --set'}"
   NEW_APP_RAW=true
@@ -271,6 +270,9 @@ function deployAPP() {
   eval "$CMD"
   unset VALUES
   unset NETWORK_ANNOTATION
+  echo
+  echo
+  echo
 }
 
 #######################################
