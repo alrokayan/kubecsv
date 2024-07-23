@@ -24,12 +24,92 @@
 if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     echo "Usage: $0 <CSV file> <Time Zone> <Kubeconfig file>"
     echo "EXAMPLE: $0 deploy.csv Asia/Riyadh ~/.kube/config"
+    echo "NOTE: <CSV file> will be created with an example if it does not exist"
     if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
         echo "This script will deploy applications from a CSV file"
         exit 0
     fi
     exit 1
 fi
+export CSV_FILE="$1"
+export TZ="$2"
+export KUBECONFIG_FILE="$3"
+if [ "$CSV_FILE" == "" ]; then CSV_FILE="deploy.csv"; fi
+if [ "$TZ" == "" ]; then TZ="Asia/Riyadh"; fi
+if [ "$KUBECONFIG_FILE" == "" ]; then KUBECONFIG_FILE=$KUBECONFIG; fi
+if ! [ -f "$CSV_FILE" ]; then echo "CSV file could not be found"; exit 1; fi
+if ! [ -f "$KUBECONFIG_FILE" ]; then echo "kubeconfig file could not be found"; exit 1; fi
+
+#######################################
+#######################################
+### FUNCTION deploycsvFileCreation #######
+#######################################
+#######################################
+function deploycsvFileCreation() {
+  CSV_MASTER_NIC_DEFAULT="eth0"
+  CSV_NFS_SERVER_DEFAULT="10.0.0.1"
+  CSV_NFS_PATH_DEFAULT="/mnt/kube-volumes"
+  CSV_LARGE_NFS_PATH_DEFAULT="/mnt/hdd"
+  CSV_IP_DEFAULT=10.99.0.50
+  CSV_CIDR_DEFAULT=24
+  CSV_GW_DEFAULT=10.99.0.1
+  CSV_DNS1_DEFAULT=1.1.1.1
+  CSV_DNS2_DEFAULT=8.8.8.8
+
+  if [ ! -f "$CSV_FILE" ]; then
+    if $CONTINUE; then
+      unset READ_VAR_ASK
+    else
+      READ_VAR_ASK=1
+    fi
+    readVar CSV_MASTER_NIC "$CSV_MASTER_NIC_DEFAULT" "What's your default network interface (run \"ip a\" in the master node to get the list)?" $READ_VAR_ASK 
+    readVar CSV_NFS_SERVER "$CSV_NFS_SERVER_DEFAULT" "What's your NFS server?" $READ_VAR_ASK 
+    readVar CSV_NFS_PATH "$CSV_NFS_PATH_DEFAULT" "What's the NFS server's path where all volumes are?" $READ_VAR_ASK 
+    readVar CSV_LARGE_NFS_PATH "$CSV_LARGE_NFS_PATH_DEFAULT" "What's the NFS server's path where all large files (media and downloads) are?" $READ_VAR_ASK 
+    readVar CSV_IP "$CSV_IP_DEFAULT" "Give example of a valid local IP?" $READ_VAR_ASK 
+    readVar CSV_CIDR "$CSV_CIDR_DEFAULT" "What's the CIDR suffex for $CSV_IP?" $READ_VAR_ASK 
+    export CSV_CIDR="${CSV_CIDR//$'/'/}"
+    readVar CSV_GW "$CSV_GW_DEFAULT" "What's the gateway for $CSV_IP?" $READ_VAR_ASK 
+    readVar CSV_DNS1 "$DNS1" "What's the DNS1 for $CSV_IP?" $READ_VAR_ASK 
+    readVar CSV_DNS2 "$DNS2" "hat's the DNS2 for $CSV_IP?" $READ_VAR_ASK 
+    if [ "$CSV_MASTER_NIC" == "" ]; then CSV_MASTER_NIC=$CSV_MASTER_NIC_DEFAULT; fi
+    if [ "$CSV_LARGE_NFS_PATH" == "" ]; then CSV_LARGE_NFS_PATH=$CSV_LARGE_NFS_PATH_DEFAULT; fi
+    if [ "$CSV_NFS_SERVER" == "" ]; then CSV_NFS_SERVER=$CSV_NFS_SERVER_DEFAULT; fi
+    if [ "$CSV_NFS_PATH" == "" ]; then CSV_NFS_PATH=$CSV_NFS_PATH_DEFAULT; fi
+    if [ "$CSV_IP" == "" ]; then CSV_IP=$CSV_IP_DEFAULT; fi
+    if [ "$CSV_CIDR" == "" ]; then CSV_CIDR=$CSV_CIDR_DEFAULT; fi
+    if [ "$CSV_GW" == "" ]; then CSV_GW=$CSV_GW_DEFAULT; fi
+    if [ "$CSV_DNS1" == "" ]; then CSV_DNS1=$CSV_DNS1_DEFAULT; fi
+    if [ "$CSV_DNS2" == "" ]; then CSV_DNS2=$CSV_DNS2_DEFAULT; fi
+    cat <<EOF >"$CSV_FILE"
+app_name,helm_truechart,storage_name,storage_enabled,storage_path,storage_subPath,storage_server,storage_type,storage_mountPath,nw_master_nic,nw_mac,nw_address_with_subnet,nw_gateway,nw_dns1,nw_dns2,run_as_user,run_as_group,privileged,extra_helm_values
+plex,plex,config,true,$CSV_NFS_PATH/plex,config,$CSV_NFS_SERVER,nfs,/config,,,,,,,,,,
+plex,plex,movies,true,$CSV_LARGE_NFS_PATH/Media,Movies,$CSV_NFS_SERVER,nfs,/Movies,,,,,,,,,,
+plex,plex,tv,true,$CSV_LARGE_NFS_PATH/Media,TV,$CSV_NFS_SERVER,nfs,/TV,$CSV_MASTER_NIC,,$(NEXT_IP "$CSV_IP" 1)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true,
+radarr,radarr,config,true,$CSV_NFS_PATH/radarr,config,$CSV_NFS_SERVER,nfs,/config,,,,,,,,,,
+radarr,radarr,movies,true,$CSV_LARGE_NFS_PATH/Media,Movies,$CSV_NFS_SERVER,nfs,/movies,,,,,,,,,,
+radarr,radarr,downloads,true,$CSV_LARGE_NFS_PATH/Downloads,,$CSV_NFS_SERVER,nfs,/downloads,$CSV_MASTER_NIC,$(printf '00:2F:60:%02X:%02X:%02X\n' "$(shuf -i 0-99 -n 1)" "$(shuf -i 101-199 -n 1)" "$(shuf -i 201-256 -n 1)"),,,,,0,0,true,
+sonarr,sonarr,config,true,$CSV_NFS_PATH/sonarr,config,$CSV_NFS_SERVER,nfs,/config,,,,,,,,,,
+sonarr,sonarr,tv,true,$CSV_LARGE_NFS_PATH/Media,TV,$CSV_NFS_SERVER,nfs,/tv,,,,,,,,,,
+sonarr,sonarr,downloads,true,$CSV_LARGE_NFS_PATH/Downloads,,$CSV_NFS_SERVER,nfs,/downloads,$CSV_MASTER_NIC,$(printf '00:2F:60:%02X:%02X:%02X\n' "$(shuf -i 0-99 -n 1)" "$(shuf -i 101-199 -n 1)" "$(shuf -i 201-256 -n 1)"),,,,,0,0,true,
+sabnzbd,sabnzbd,config,true,$CSV_NFS_PATH/sabnzbd,config,$CSV_NFS_SERVER,nfs,/config,,,,,,,,,,
+sabnzbd,sabnzbd,downloads,true,$CSV_LARGE_NFS_PATH/Downloads,,$CSV_NFS_SERVER,nfs,/downloads,$CSV_MASTER_NIC,$(printf '00:2F:60:%02X:%02X:%02X\n' "$(shuf -i 0-99 -n 1)" "$(shuf -i 101-199 -n 1)" "$(shuf -i 201-256 -n 1)"),,,,,0,0,true,
+overseerr,overseerr,config,true,$CSV_NFS_PATH/overseerr,config,$CSV_NFS_SERVER,nfs,/app/config,$CSV_MASTER_NIC,$(printf '00:2F:60:%02X:%02X:%02X\n' "$(shuf -i 0-99 -n 1)" "$(shuf -i 101-199 -n 1)" "$(shuf -i 201-256 -n 1)"),,,,,0,0,true,
+code-server,code-server,config,true,$CSV_NFS_PATH/code-server,config,$CSV_NFS_SERVER,nfs,/config,$CSV_MASTER_NIC,,$(NEXT_IP "$CSV_IP" 1)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true,
+netbootxyz,netbootxyz,config,true,$CSV_NFS_PATH/netbootxyz,config,$CSV_NFS_SERVER,nfs,/config,,,,,,,,,,
+netbootxyz,netbootxyz,assets,true,$CSV_NFS_PATH/netbootxyz,assets,$CSV_NFS_SERVER,nfs,/assets,$CSV_MASTER_NIC,,$(NEXT_IP "$CSV_IP "2)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true,
+homepage,homepage,config,true,$CSV_NFS_PATH/homepage,config,$CSV_NFS_SERVER,nfs,/app/config,$CSV_MASTER_NIC,,$(NEXT_IP "$CSV_IP" 3)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,,,,
+home-assistant,home-assistant,config,true,$CSV_NFS_PATH/home-assistant,config,$CSV_NFS_SERVER,nfs,/config,$CSV_MASTER_NIC,,$(NEXT_IP "$CSV_IP" 4)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true,--set cnpg.main.enabled=false --set configmap.init.enabled=false --set persistence.init.enabled=false --set workload.main.podSpec.initContainers.init.enabled=false
+mosquitto,mosquitto,data,true,$CSV_NFS_PATH/mosquitto,data,$CSV_NFS_SERVER,nfs,/mosquitto/data,,,,,,,,,,
+mosquitto,mosquitto,mosquitto-config,false,,,,,,,,,,,,,,,
+mosquitto,mosquitto,configinc,false,,,,,,,,,,,,,,,
+mosquitto,mosquitto,config,true,$CSV_NFS_PATH/mosquitto,config,$CSV_NFS_SERVER,nfs,/mosquitto/config,$CSV_MASTER_NIC,,$(NEXT_IP "$CSV_IP" 5)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,,,,
+zigbee2mqtt,zigbee2mqtt,data,true,$CSV_NFS_PATH/zigbee2mqtt,data,$CSV_NFS_SERVER,nfs,/data,$CSV_MASTER_NIC,,$(NEXT_IP "$CSV_IP" 6)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true,--set workload.main.podSpec.initContainers.init-config.enabled=false --set containers.main.env.USE_CUSTOM_CONFIG_FILE=true
+node-red,node-red,data,true,$CSV_NFS_PATH/node-red,data,$CSV_NFS_SERVER,nfs,/data,$CSV_MASTER_NIC,,$(NEXT_IP "$CSV_IP" 7)/$CSV_CIDR,$CSV_GW,$CSV_DNS1,$CSV_DNS2,0,0,true,
+EOF
+  fi
+}
+
 #######################################
 #######################################
 # FUNCTION createNetworkAttachmentDefinition_STATIC
@@ -189,7 +269,6 @@ function deployAPP() {
   CMD="helm --kubeconfig $KUBECONFIG_FILE upgrade --install $CURRENT_APP --namespace $APP_NAMESPACE --create-namespace oci://tccr.io/truecharts/$CURRENT_HELM_CHART $VALUES"
   echo "-- Running command: $CMD"
   eval "$CMD"
-  # echo "-- $CURRENT_APP is been deployed .." 
   unset VALUES
   unset NETWORK_ANNOTATION
 }
@@ -233,19 +312,12 @@ function binInstall() {
   helm version
   kubectl version --client=true
 }
-
-
 ##############################################################################
 binInstall
-export CSV_FILE="$1"
-export TZ="$2"
-export KUBECONFIG_FILE="$3"
-if [ "$CSV_FILE" == "" ]; then CSV_FILE="deploy.csv"; fi
-if [ "$TZ" == "" ]; then TZ="Asia/Riyadh"; fi
-if [ "$KUBECONFIG_FILE" == "" ]; then KUBECONFIG_FILE=$KUBECONFIG; fi
-if ! [ -f "$CSV_FILE" ]; then echo "CSV file could not be found"; exit 1; fi
-if ! [ -f "$KUBECONFIG_FILE" ]; then echo "kubeconfig file could not be found"; exit 1; fi
-
+if ! [ -f "$CSV_FILE" ]; then
+  deploycsvFileCreation
+  exit 0
+fi
 NEW_APP_RAW=true
 j=1
 while IFS="," read -r app_name helm_truechart storage_name storage_enabled storage_path storage_subPath storage_server storage_type storage_mountPath nw_master_nic nw_mac nw_address_with_subnet nw_gateway nw_dns1 nw_dns2 run_as_user run_as_group privileged extra_helm_values; do
