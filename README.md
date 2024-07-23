@@ -3,7 +3,7 @@
 
 ---
 ## HOW TO USE `kubecsv` ?
-Create a csv file following `CSV Columns` section below or copy and edit one of the `examples` in this repo. Then run below command in Linux or macOS. Replace `/path/to/file.csv` with yours.
+Create a csv file following `CSV Columns` section below or copy and edit one of the `examples` in this repo. Then run below command in Linux or macOS. Replace `/path/to/file.csv` with yours (if it does not exist it an example will be created).
 ```
 curl -fsSL https://raw.githubusercontent.com/alrokayan/scripts/main/disk-test.sh | bash -s -- /path/to/file.csv
 ```
