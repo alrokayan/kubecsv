@@ -329,7 +329,7 @@ while IFS="," read -r app_name helm_truechart storage_name storage_enabled stora
   APP_NAMESPACE="app-$CURRENT_APP"
   if $NEW_APP_RAW; then
     echo "csv raw $j -- $app_name: Building values  .."
-    kubectl --kubeconfig "$KUBECONFIG_FILE "create ns "$APP_NAMESPACE"
+    kubectl --kubeconfig "$KUBECONFIG_FILE" create ns "$APP_NAMESPACE"
     NEW_APP_RAW=false
   fi
   if [ "$storage_name" != "" ]; then
