@@ -254,9 +254,9 @@ EOF
 #######################################
 function deployAPP() {
   if [ "$GW" == "" ]; then
-    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=$NETWORK_ANNOTATION' --set TZ=$TZ --set 'podOptions.nodeSelector=[{\"name\": \"node1\"\}]'"
+    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=$NETWORK_ANNOTATION' --set TZ=$TZ --set 'podOptions.nodeSelector=[{\"name\": \"node1\"}]'"
   else
-    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=[$NETWORK_ANNOTATION]' --set TZ=$TZ --set 'podOptions.nodeSelector=[{\"name\": \"node1\"\}]'"
+    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=[$NETWORK_ANNOTATION]' --set TZ=$TZ --set 'podOptions.nodeSelector=[{\"name\": \"node1\"}]'"
   fi
   VALUES="${VALUES//$'\r'/}"
   echo "csv raw $((j - 1)) -- $CURRENT_APP: Deploying .." 
