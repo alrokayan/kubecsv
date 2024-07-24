@@ -254,13 +254,12 @@ EOF
 #######################################
 function deployAPP() {
   if [ "$GW" == "" ]; then
-    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=$NETWORK_ANNOTATION' --set TZ=$TZ --set podOptions.nodeSelector[0]=\"name=node1\""
+    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=$NETWORK_ANNOTATION' --set TZ=$TZ"
   else
-    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=[$NETWORK_ANNOTATION]' --set TZ=$TZ --set podOptions.nodeSelector[0]=\"name=node1\""
+    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=[$NETWORK_ANNOTATION]' --set TZ=$TZ"
   fi
   VALUES="${VALUES//$'\r'/}"
   echo "csv raw $((j - 1)) -- $CURRENT_APP: Deploying .." 
-  echo
   echo -n "-- kubecsv added the following values: "
   echo "${VALUES//--set/$'\n# --set'}"
   NEW_APP_RAW=true
@@ -270,6 +269,8 @@ function deployAPP() {
   eval "$CMD"
   unset VALUES
   unset NETWORK_ANNOTATION
+  echo
+  echo "============================================="
 }
 
 #######################################
