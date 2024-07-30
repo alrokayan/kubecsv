@@ -1,5 +1,5 @@
 /.DS_Store
-deploy.csv
+*.csv
 logs
 tmp
 bin
@@ -9,3 +9,6 @@ bin
 kubeconfig
 .nfs*
 NOTES.md
+/*.BACKUP
+_include
+k8s-toolkit

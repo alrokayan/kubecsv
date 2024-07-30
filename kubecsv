@@ -742,16 +742,6 @@ function sshCopyID() {
     mkdir -p ~/.ssh
     chmod 700 ~/.ssh
     ssh-copy-id -o LogLevel=QUIET -i "$PRIVATE_KEY" $SSH_EXTRA_ARGS "$SSH_USERNAME"@"$IP" 1>&3
-    if [[ $? -eq 0 ]]; then
-      echo "-- ssh-copy-id for $IP is successful"
-    else
-      echo -n "-- ERROR: ssh-copy-id failed for $IP with the following public key in $(dirname $PRIVATE_KEY): "
-      cat "$PRIVATE_KEY.pub"
-      echo
-      # sed -i.BACKUP "/^export PRIVATE_KEY=/d" .env
-      unset PRIVATE_KEY
-      return 1
-    fi
   done
   return 0
 }
