@@ -6,30 +6,30 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-#  
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# 
+#
 # HOW TO:
 # curl -fL -H 'Cache-Control: no-cache, no-store' https://raw.githubusercontent.com/alrokayan/kubecsv/main/kubecsv | bash -s -- deploy.csv Asia/Riyadh ~/.kube/config
 # $1 csv file
 # $2 Time Zone
 # $3 kubeconfig path
 if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-    echo "Usage: $0 <CSV file> <Time Zone> <Kubeconfig file>"
-    echo "EXAMPLE: $0 deploy.csv Asia/Riyadh ~/.kube/config"
-    echo "NOTE: <CSV file> will be created with an example if it does not exist"
-    if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-        echo "This script will deploy applications from a CSV file"
-        exit 0
-    fi
-    exit 1
+  echo "Usage: $0 <CSV file> <Time Zone> <Kubeconfig file>"
+  echo "EXAMPLE: $0 deploy.csv Asia/Riyadh ~/.kube/config"
+  echo "NOTE: <CSV file> will be created with an example if it does not exist"
+  if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    echo "This script will deploy applications from a CSV file"
+    exit 0
+  fi
+  exit 1
 fi
 export CSV_FILE="$1"
 export TZ="$2"
@@ -37,8 +37,14 @@ export KUBECONFIG_FILE="$3"
 if [ "$CSV_FILE" == "" ]; then CSV_FILE="deploy.csv"; fi
 if [ "$TZ" == "" ]; then TZ="Asia/Riyadh"; fi
 if [ "$KUBECONFIG_FILE" == "" ]; then KUBECONFIG_FILE=$KUBECONFIG; fi
-if ! [ -f "$CSV_FILE" ]; then echo "CSV file could not be found"; exit 1; fi
-if ! [ -f "$KUBECONFIG_FILE" ]; then echo "kubeconfig file could not be found"; exit 1; fi
+if ! [ -f "$CSV_FILE" ]; then
+  echo "CSV file could not be found"
+  exit 1
+fi
+if ! [ -f "$KUBECONFIG_FILE" ]; then
+  echo "kubeconfig file could not be found"
+  exit 1
+fi
 
 #######################################
 #######################################
@@ -62,16 +68,16 @@ function deploycsvFileCreation() {
     else
       READ_VAR_ASK=1
     fi
-    readVar CSV_MASTER_NIC "$CSV_MASTER_NIC_DEFAULT" "What's your default network interface (run \"ip a\" in the master node to get the list)?" $READ_VAR_ASK 
-    readVar CSV_NFS_SERVER "$CSV_NFS_SERVER_DEFAULT" "What's your NFS server?" $READ_VAR_ASK 
-    readVar CSV_NFS_PATH "$CSV_NFS_PATH_DEFAULT" "What's the NFS server's path where all volumes are?" $READ_VAR_ASK 
-    readVar CSV_LARGE_NFS_PATH "$CSV_LARGE_NFS_PATH_DEFAULT" "What's the NFS server's path where all large files (media and downloads) are?" $READ_VAR_ASK 
-    readVar CSV_IP "$CSV_IP_DEFAULT" "Give example of a valid local IP?" $READ_VAR_ASK 
-    readVar CSV_CIDR "$CSV_CIDR_DEFAULT" "What's the CIDR suffex for $CSV_IP?" $READ_VAR_ASK 
+    readVar CSV_MASTER_NIC "$CSV_MASTER_NIC_DEFAULT" "What's your default network interface (run \"ip a\" in the master node to get the list)?" $READ_VAR_ASK
+    readVar CSV_NFS_SERVER "$CSV_NFS_SERVER_DEFAULT" "What's your NFS server?" $READ_VAR_ASK
+    readVar CSV_NFS_PATH "$CSV_NFS_PATH_DEFAULT" "What's the NFS server's path where all volumes are?" $READ_VAR_ASK
+    readVar CSV_LARGE_NFS_PATH "$CSV_LARGE_NFS_PATH_DEFAULT" "What's the NFS server's path where all large files (media and downloads) are?" $READ_VAR_ASK
+    readVar CSV_IP "$CSV_IP_DEFAULT" "Give example of a valid local IP?" $READ_VAR_ASK
+    readVar CSV_CIDR "$CSV_CIDR_DEFAULT" "What's the CIDR suffex for $CSV_IP?" $READ_VAR_ASK
     export CSV_CIDR="${CSV_CIDR//$'/'/}"
-    readVar CSV_GW "$CSV_GW_DEFAULT" "What's the gateway for $CSV_IP?" $READ_VAR_ASK 
-    readVar CSV_DNS1 "$DNS1" "What's the DNS1 for $CSV_IP?" $READ_VAR_ASK 
-    readVar CSV_DNS2 "$DNS2" "hat's the DNS2 for $CSV_IP?" $READ_VAR_ASK 
+    readVar CSV_GW "$CSV_GW_DEFAULT" "What's the gateway for $CSV_IP?" $READ_VAR_ASK
+    readVar CSV_DNS1 "$DNS1" "What's the DNS1 for $CSV_IP?" $READ_VAR_ASK
+    readVar CSV_DNS2 "$DNS2" "hat's the DNS2 for $CSV_IP?" $READ_VAR_ASK
     if [ "$CSV_MASTER_NIC" == "" ]; then CSV_MASTER_NIC=$CSV_MASTER_NIC_DEFAULT; fi
     if [ "$CSV_LARGE_NFS_PATH" == "" ]; then CSV_LARGE_NFS_PATH=$CSV_LARGE_NFS_PATH_DEFAULT; fi
     if [ "$CSV_NFS_SERVER" == "" ]; then CSV_NFS_SERVER=$CSV_NFS_SERVER_DEFAULT; fi
@@ -254,12 +260,12 @@ EOF
 #######################################
 function deployAPP() {
   if [ "$GW" == "" ]; then
-    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=$NETWORK_ANNOTATION' --set TZ=$TZ"
+    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=$NETWORK_ANNOTATION' --set common.TZ=$TZ"
   else
-    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=[$NETWORK_ANNOTATION]' --set TZ=$TZ"
+    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=[$NETWORK_ANNOTATION]' --set common.TZ=$TZ"
   fi
   VALUES="${VALUES//$'\r'/}"
-  echo "csv raw $((j - 1)) -- $CURRENT_APP: Deploying .." 
+  echo "csv raw $((j - 1)) -- $CURRENT_APP: Deploying .."
   echo -n "-- kubecsv added the following values: "
   echo "${VALUES//--set/$'\n# --set'}"
   NEW_APP_RAW=true
@@ -280,33 +286,33 @@ function deployAPP() {
 #######################################
 function binInstall() {
   if [[ "$(uname -s)" == *"Linux"* ]]; then
-    echo "-- OS: Linux - CHECKING BINARIES" 
-    if ! command -v helm &> /dev/null; then
+    echo "-- OS: Linux - CHECKING BINARIES"
+    if ! command -v helm &>/dev/null; then
       curl -L https://get.helm.sh/helm-v3.15.2-linux-"$(dpkg --print-architecture)".tar.gz -o tmp/helm.tar.gz
       tar -zxf tmp/helm.tar.gz -C tmp
       sudo mv tmp/linux-"$(dpkg --print-architecture)"/helm /usr/local/bin/
       sudo chmod +x /usr/local/bin
-      if command -v helm &> /dev/null; then echo "-- helm installed successfully" ; fi
+      if command -v helm &>/dev/null; then echo "-- helm installed successfully"; fi
     fi
-    if ! command -v kubectl &> /dev/null; then
+    if ! command -v kubectl &>/dev/null; then
       sudo curl -L "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$(dpkg --print-architecture)/kubectl" -o /usr/local/bin/kubectl
       sudo chmod +x /usr/local/bin/kubectl
-      if command -v kubectl &> /dev/null; then echo "-- kubectl installed successfully" ; fi
+      if command -v kubectl &>/dev/null; then echo "-- kubectl installed successfully"; fi
     fi
   fi
   if [[ "$(uname -s)" == *"Darwin"* ]]; then
-    echo "-- OS: macOS - CHECKING BINARIES" 
-    if ! command -v helm &> /dev/null; then
+    echo "-- OS: macOS - CHECKING BINARIES"
+    if ! command -v helm &>/dev/null; then
       curl -L "https://get.helm.sh/helm-v3.15.2-darwin-$(arch).tar.gz" -o tmp/helm.tar.gz
       tar -zxf tmp/helm.tar.gz -C tmp
       sudo mv tmp/darwin-"$(arch)"/helm /usr/local/bin/
       sudo chmod +x /usr/local/bin/helm
-      if command -v helm &> /dev/null; then echo "-- helm installed successfully" ; fi
+      if command -v helm &>/dev/null; then echo "-- helm installed successfully"; fi
     fi
-    if ! command -v kubectl &> /dev/null; then
+    if ! command -v kubectl &>/dev/null; then
       sudo curl -L "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/darwin/$(arch)/kubectl" -o /usr/local/bin/kubectl
       sudo chmod +x /usr/local/bin/kubectl
-      if command -v kubectl &> /dev/null; then echo "-- kubectl installed successfully" ; fi
+      if command -v kubectl &>/dev/null; then echo "-- kubectl installed successfully"; fi
     fi
   fi
   helm version
@@ -333,7 +339,7 @@ while IFS="," read -r app_name helm_truechart storage_name storage_enabled stora
     NEW_APP_RAW=false
   fi
   if [ "$storage_name" != "" ]; then
-    echo "csv raw $j -- $app_name: Adding storage configuration \"$storage_name\" to the values .."  
+    echo "csv raw $j -- $app_name: Adding storage configuration \"$storage_name\" to the values .."
     if [ "$storage_enabled" != "" ]; then
       VALUES+="--set persistence.$storage_name.enabled=$storage_enabled "
     fi
@@ -354,6 +360,8 @@ while IFS="," read -r app_name helm_truechart storage_name storage_enabled stora
     fi
   fi
   if [ "$nw_master_nic" != "" ]; then
+    echo "csv raw $j -- $app_name: Adding dnsPolicy=ClusterFirstWithHostNet to the values .."
+    VALUES+="--set podOptions.dnsPolicy=ClusterFirstWithHostNet "
     MAC=$nw_mac
     MAC_REGEX="^([a-fA-F0-9]{2}:){5}[a-fA-F0-9]{2}$"
     if ! [[ $MAC =~ $MAC_REGEX ]]; then MAC="$(printf '00:2F:60:%02X:%02X:%02X\n' "$(shuf -i 0-99 -n 1)" "$(shuf -i 101-199 -n 1)" "$(shuf -i 201-256 -n 1)")"; fi
@@ -368,10 +376,10 @@ while IFS="," read -r app_name helm_truechart storage_name storage_enabled stora
     IP=$(echo "$IPCIDR" | cut -d'/' -f1)
     kubectl --kubeconfig "$KUBECONFIG_FILE" delete network-attachment-definitions.k8s.cni.cncf.io "$BRIDGE_NAME" -n "$APP_NAMESPACE"
     if [[ $IP =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-      echo "csv raw $j -- $app_name: Adding STATIC IP ($nw_address_with_subnet) ($MAC) network configuration $nw_master_nic to the values .." 
+      echo "csv raw $j -- $app_name: Adding STATIC IP ($nw_address_with_subnet) ($MAC) network configuration $nw_master_nic to the values .."
       createNetworkAttachmentDefinition_STATIC
     else
-      echo "csv raw $j -- $app_name: Adding DHCP ($MAC) network configuration $nw_master_nic to the values .." 
+      echo "csv raw $j -- $app_name: Adding DHCP ($MAC) network configuration $nw_master_nic to the values .."
       createNetworkAttachmentDefinition_DHCP
     fi
     if [ "$GW" == "" ]; then
@@ -387,39 +395,34 @@ while IFS="," read -r app_name helm_truechart storage_name storage_enabled stora
         NETWORK_ANNOTATION+=",{\"name\": \"$BRIDGE_NAME\"\,\"default-route\": [\"$GW\"]}"
       fi
     fi
-    if [ "$DNS1" != "" ] || [ "$DNS2" != "" ]; then
-      echo "csv raw $j -- $app_name: Adding dnsPolicy=ClusterFirstWithHostNet to the values .." 
-      VALUES+="--set workload.main.podSpec.dnsPolicy=ClusterFirstWithHostNet "
-      VALUES+="--set podOptions.dnsPolicy=ClusterFirstWithHostNet "
-      if [ "$DNS1" != "" ]; then
-        echo "csv raw $j -- $app_name: Adding DNS1=$DNS1 to the values .." 
-        VALUES+="--set workload.main.podSpec.dnsConfig.nameservers[0]=\"$DNS1\" "
-      fi
-      if [ "$DNS2" != "" ]; then
-          echo "csv raw $j -- $app_name: Adding DNS2=$DNS2 to the values .." 
-        VALUES+="--set workload.main.podSpec.dnsConfig.nameservers[1]=\"$DNS2\" "
-      fi
+    if [ "$DNS1" != "" ]; then
+      echo "csv raw $j -- $app_name: Adding DNS1=$DNS1 to the values .."
+      VALUES+="--set workload.main.podSpec.dnsConfig.nameservers[0]=\"$DNS1\" "
+    fi
+    if [ "$DNS2" != "" ]; then
+      echo "csv raw $j -- $app_name: Adding DNS2=$DNS2 to the values .."
+      VALUES+="--set workload.main.podSpec.dnsConfig.nameservers[1]=\"$DNS2\" "
     fi
   fi
   if [ "$run_as_user" != "" ]; then
-    echo "csv raw $j -- $app_name: Adding runAsUser: $run_as_user to the values .." 
+    echo "csv raw $j -- $app_name: Adding runAsUser: $run_as_user to the values .."
     VALUES+="--set securityContext.container.runAsUser=$run_as_user "
     VALUES+="--set securityContext.container.PUID=$run_as_user "
   fi
   if [ "$run_as_group" != "" ]; then
-    echo "csv raw $j -- $app_name: Adding runAsGroup: $run_as_group to the values .." 
+    echo "csv raw $j -- $app_name: Adding runAsGroup: $run_as_group to the values .."
     VALUES+="--set securityContext.container.runAsGroup=$run_as_group "
     VALUES+="--set securityContext.pod.fsGroup=$run_as_group "
   fi
   if [ "$privileged" != "" ]; then
-    echo "csv raw $j -- $app_name: Adding privileged: $privileged to the values .." 
+    echo "csv raw $j -- $app_name: Adding privileged: $privileged to the values .."
     VALUES+="--set securityContext.container.privileged=$privileged "
     VALUES+="--set securityContext.container.UMASK=000 "
     VALUES+="--set securityContext.container.runAsNonRoot=false "
     VALUES+="--set securityContext.container.readOnlyRootFilesystem=false "
   fi
   if [ "$extra_helm_values" != "" ]; then
-    echo "csv raw $j -- $app_name: Adding extra values: $extra_helm_values .." 
+    echo "csv raw $j -- $app_name: Adding extra values: $extra_helm_values .."
     VALUES+="$extra_helm_values "
   fi
   j=$((j + 1))
