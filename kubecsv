@@ -384,15 +384,15 @@ while IFS="," read -r app_name helm_truechart storage_name storage_enabled stora
     fi
     if [ "$GW" == "" ]; then
       if [ "$NETWORK_ANNOTATION" == "" ]; then
-        NETWORK_ANNOTATION="$BRIDGE_NAME"
+        NETWORK_ANNOTATION="{\"name\": \"$BRIDGE_NAME\"\,\"interface\": \"eth1\"}"
       else
-        NETWORK_ANNOTATION+="\,$BRIDGE_NAME"
+        NETWORK_ANNOTATION+=",{\"name\": \"$BRIDGE_NAME\"\,\"interface\": \"eth2\"}"
       fi
     else
       if [ "$NETWORK_ANNOTATION" == "" ]; then
-        NETWORK_ANNOTATION="{\"name\": \"$BRIDGE_NAME\"\,\"default-route\": [\"$GW\"]}"
+        NETWORK_ANNOTATION="{\"name\": \"$BRIDGE_NAME\"\,\"default-route\": [\"$GW\"]\,\"interface\": \"eth1\"}"
       else
-        NETWORK_ANNOTATION+=",{\"name\": \"$BRIDGE_NAME\"\,\"default-route\": [\"$GW\"]}"
+        NETWORK_ANNOTATION+=",{\"name\": \"$BRIDGE_NAME\"\,\"default-route\": [\"$GW\"]\,\"interface\": \"eth2\"}"
       fi
     fi
     if [ "$DNS1" != "" ]; then
