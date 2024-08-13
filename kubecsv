@@ -343,20 +343,34 @@ while IFS="," read -r app_name helm_truechart storage_name storage_enabled stora
     if [ "$storage_enabled" != "" ]; then
       VALUES+="--set persistence.$storage_name.enabled=$storage_enabled "
     fi
-    if [ "$storage_path" != "" ]; then
-      VALUES+="--set persistence.$storage_name.path=\"$storage_path\" "
-    fi
-    if [ "$storage_subPath" != "" ]; then
-      VALUES+="--set persistence.$storage_name.subPath=\"$storage_subPath\" "
-    fi
-    if [ "$storage_server" != "" ]; then
-      VALUES+="--set persistence.$storage_name.server=\"$storage_server\" "
-    fi
-    if [ "$storage_type" != "" ]; then
-      VALUES+="--set persistence.$storage_name.type=\"$storage_type\" "
-    fi
     if [ "$storage_mountPath" != "" ]; then
       VALUES+="--set persistence.$storage_name.mountPath=\"$storage_mountPath\" "
+    fi
+
+
+
+    if [ "$storage_type" != "" ]; then
+      VALUES+="--set persistence.$storage_name.type=\"$storage_type\" "
+      if [ "$storage_type" == "nfs" ]; then
+        if [ "$storage_path" != "" ]; then
+          VALUES+="--set persistence.$storage_name.path=\"$storage_path\" "
+        fi
+        if [ "$storage_subPath" != "" ]; then
+          VALUES+="--set persistence.$storage_name.subPath=\"$storage_subPath\" "
+        fi
+        if [ "$storage_server" != "" ]; then
+          VALUES+="--set persistence.$storage_name.server=\"$storage_server\" "
+        fi
+      fi
+      if [ "$storage_type" == "hostPath" ]; then
+        if [ "$storage_path" != "" ]; then
+          HOSTPATH="$storage_path"
+          if [ "$storage_subPath" != "" ]; then
+            HOSTPATH+="/$storage_subPath"
+          fi
+          VALUES+="--set persistence.$storage_name.hostPath=\"$HOSTPATH\" "
+        fi
+      fi
     fi
   fi
   if [ "$nw_master_nic" != "" ]; then
