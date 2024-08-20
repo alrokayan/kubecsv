@@ -346,9 +346,6 @@ while IFS="," read -r app_name helm_truechart storage_name storage_enabled stora
     if [ "$storage_mountPath" != "" ]; then
       VALUES+="--set persistence.$storage_name.mountPath=\"$storage_mountPath\" "
     fi
-
-
-
     if [ "$storage_type" != "" ]; then
       VALUES+="--set persistence.$storage_name.type=\"$storage_type\" "
       if [ "$storage_type" == "nfs" ]; then
