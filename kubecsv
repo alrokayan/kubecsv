@@ -260,9 +260,9 @@ EOF
 #######################################
 function deployAPP() {
   if [ "$GW" == "" ]; then
-    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=$NETWORK_ANNOTATION' --set common.TZ=$TZ"
+    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=$NETWORK_ANNOTATION' --set common.TZ=$TZ --set TZ=$TZ"
   else
-    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=[$NETWORK_ANNOTATION]' --set common.TZ=$TZ"
+    VALUES+="--set 'workload.main.podSpec.annotations.k8s\.v1\.cni\.cncf\.io/networks=[$NETWORK_ANNOTATION]' --set common.TZ=$TZ --set TZ=$TZ"
   fi
   VALUES="${VALUES//$'\r'/}"
   echo "csv raw $((j - 1)) -- $CURRENT_APP: Deploying .."
